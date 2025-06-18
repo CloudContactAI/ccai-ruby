@@ -1,0 +1,132 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Copyright (c) 2025 CloudContactAI LLC
+# Licensed under the MIT License. See LICENSE in the project root for license information.
+
+require 'ccai'
+require 'optparse'
+
+options = {
+  client_id: ENV['CCAI_CLIENT_ID'],
+  api_key: ENV['CCAI_API_KEY'],
+  first_name: nil,
+  last_name: nil,
+  phone: nil,
+  message: nil,
+  title: 'CLI Test',
+  image_path: nil,
+  content_type: 'image/jpeg'
+}
+
+OptionParser.new do |opts|
+  opts.banner = "Usage: ccai [options]"
+
+  opts.on("--client-id ID", "CCAI client ID") do |v|
+    options[:client_id] = v
+  end
+
+  opts.on("--api-key KEY", "CCAI API key") do |v|
+    options[:api_key] = v
+  end
+
+  opts.on("--first-name NAME", "Recipient's first name") do |v|
+    options[:first_name] = v
+  end
+
+  opts.on("--last-name NAME", "Recipient's last name") do |v|
+    options[:last_name] = v
+  end
+
+  opts.on("--phone PHONE", "Recipient's phone number (E.164 format)") do |v|
+    options[:phone] = v
+  end
+
+  opts.on("--message MESSAGE", "Message content") do |v|
+    options[:message] = v
+  end
+
+  opts.on("--title TITLE", "Campaign title") do |v|
+    options[:title] = v
+  end
+
+  opts.on("--image PATH", "Path to image file for MMS (optional)") do |v|
+    options[:image_path] = v
+  end
+
+  opts.on("--content-type TYPE", "Content type of the image file") do |v|
+    options[:content_type] = v
+  end
+
+  opts.on("--version", "Show version information") do
+    puts "CCAI Ruby Client v#{CCAI::VERSION}"
+    exit
+  end
+
+  opts.on("-h", "--help", "Show this help message") do
+    puts opts
+    exit
+  end
+end.parse!
+
+# Check required options
+required = [:client_id, :api_key, :first_name, :last_name, :phone, :message]
+missing = required.select { |param| options[param].nil? }
+
+if missing.any?
+  puts "Error: Missing required parameters: #{missing.join(', ')}"
+  puts "Use --help for usage information"
+  exit 1
+end
+
+# Initialize the client
+client = CCAI.new(
+  client_id: options[:client_id],
+  api_key: options[:api_key]
+)
+
+# Create options with progress tracking
+ccai_options = CCAI::SMS::Options.new(
+  on_progress: ->(status) { puts "Progress: #{status}" }
+)
+
+# Create account
+account = CCAI::SMS::Account.new(
+  first_name: options[:first_name],
+  last_name: options[:last_name],
+  phone: options[:phone]
+)
+
+# Send message
+begin
+  response = if options[:image_path]
+    # Send MMS
+    puts "Sending MMS..."
+    client.mms.send_with_image(
+      options[:image_path],
+      options[:content_type],
+      [account],
+      options[:message],
+      options[:title],
+      ccai_options
+    )
+  else
+    # Send SMS
+    puts "Sending SMS..."
+    client.sms.send(
+      [account],
+      options[:message],
+      options[:title],
+      ccai_options
+    )
+  end
+
+  puts "Message sent successfully!"
+  puts "ID: #{response.id}"
+  puts "Status: #{response.status}"
+  puts "Campaign ID: #{response.campaign_id}"
+  puts "Messages sent: #{response.messages_sent}"
+rescue => e
+  puts "Error: #{e.message}"
+  exit 1
+end
