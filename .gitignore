@@ -1,28 +1,39 @@
+# Ignore bundler config
 /.bundle/
-/.yardoc
-/_yardoc/
-/coverage/
-/doc/
-/pkg/
-/spec/reports/
-/tmp/
-*.gem
-*.rbc
-.DS_Store
-Gemfile.lock
+/vendor/bundle
+/lib/bundler/man/
 
-# rspec failure tracking
-.rspec_status
-
-# Environment variables
+# Ignore local environment variables
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
 
-# IDE files
-.idea/
-.vscode/
-*.swp
-*.swo
+# Ignore test coverage
+/coverage/
+/spec/reports/
+/test/tmp/
+/test/version_tmp/
+/tmp/
+
+# Ignore documentation
+/doc/
+/rdoc/
+
+# Ignore package files
+*.gem
+.ruby-version
+.ruby-gemset
+
+# Ignore OS specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Ignore log files
+*.log
+
+# Ignore image files that might contain sensitive data
+imageRUBY.jpg
