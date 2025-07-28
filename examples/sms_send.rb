@@ -9,8 +9,8 @@ require 'ccai'
 
 # Initialize the client
 client = CCAI.new(
-  client_id: ENV['CCAI_CLIENT_ID'] || 'YOUR_CLIENT_ID',
-  api_key: ENV['CCAI_API_KEY'] || 'YOUR_API_KEY'
+  client_id: '2682',
+  api_key: 'eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJpbmZvQGFsbGNvZGUuY29tIiwiaXNzIjoiY2xvdWRjb250YWN0IiwibmJmIjoxNzE5NDQwMjM2LCJpYXQiOjE3MTk0NDAyMzYsInJvbGUiOiJVU0VSIiwiY2xpZW50SWQiOjI2ODIsImlkIjoyNzY0LCJ0eXBlIjoiQVBJX0tFWSIsImtleV9yYW5kb21faWQiOiI1MGRiOTUzZC1hMjUxLTRmZjMtODI5Yi01NjIyOGRhOGE1YTAifQ.PKVjXYHdjBMum9cTgLzFeY2KIb9b2tjawJ0WXalsb8Bckw1RuxeiYKS1bw5Cc36_Rfmivze0T7r-Zy0PVj2omDLq65io0zkBzIEJRNGDn3gx_AqmBrJ3yGnz9s0WTMr2-F1TFPUByzbj1eSOASIKeI7DGufTA5LDrRclVkz32Oo'
 )
 
 # Send a single SMS
@@ -18,7 +18,7 @@ begin
   response = client.sms.send_single(
     'John',
     'Doe',
-    ENV['CCAI_TEST_PHONE'] || '+1234567890',
+    '+14156961732',
     'Hello ${firstName}, this is a test message!',
     'Test Campaign'
   )
@@ -32,12 +32,12 @@ accounts = [
   CCAI::SMS::Account.new(
     first_name: 'John',
     last_name: 'Doe',
-    phone: ENV['CCAI_TEST_PHONE'] || '+1234567890'
+    phone: '+14156961732'
   ),
   CCAI::SMS::Account.new(
     first_name: 'Jane',
     last_name: 'Smith',
-    phone: ENV['CCAI_TEST_PHONE2'] || '+1987654321'
+    phone: '+14152440933'
   )
 ]
 

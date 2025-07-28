@@ -7,6 +7,8 @@ require 'faraday'
 require 'json'
 require 'ccai/sms/sms_service'
 require 'ccai/sms/mms_service'
+require 'ccai/email/email_service'
+require 'ccai/webhook_service'
 
 module CCAI
   # Configuration for the CCAI client
@@ -27,7 +29,7 @@ module CCAI
 
   # Main client for interacting with the CloudContactAI API
   class Client
-    attr_reader :config, :sms, :mms
+    attr_reader :config, :sms, :mms, :email, :webhook
 
     # Create a new CCAI client instance
     #
@@ -50,6 +52,12 @@ module CCAI
       
       # Initialize the MMS service
       @mms = SMS::MMSService.new(self)
+      
+      # Initialize the Email service
+      @email = Email::EmailService.new(self)
+      
+      # Initialize the Webhook service
+      @webhook = Webhook::WebhookService.new(self)
     end
 
     # Get the client ID

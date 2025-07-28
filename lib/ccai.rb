@@ -8,6 +8,8 @@ require 'ccai/client'
 require 'ccai/sms/models'
 require 'ccai/sms/sms_service'
 require 'ccai/sms/mms_service'
+require 'ccai/email/email_service'
+require 'ccai/webhook_service'
 
 # Main module for the CCAI Ruby client
 module CCAI

@@ -13,14 +13,20 @@ options = {
   first_name: nil,
   last_name: nil,
   phone: nil,
+  email: nil,
   message: nil,
   title: 'CLI Test',
   image_path: nil,
-  content_type: 'image/jpeg'
+  content_type: 'image/jpeg',
+  type: 'sms', # sms, mms, or email
+  subject: nil,
+  sender_email: nil,
+  reply_email: nil,
+  sender_name: nil
 }
 
 OptionParser.new do |opts|
-  opts.banner = "Usage: ccai [options]"
+  opts.banner = "Usage: ccai [options]\n\nExamples:\n  # Send SMS\n  ccai --client-id YOUR_ID --api-key YOUR_KEY --first-name John --last-name Doe --phone +1234567890 --message \"Hello!\"\n\n  # Send MMS\n  ccai --type mms --client-id YOUR_ID --api-key YOUR_KEY --first-name John --last-name Doe --phone +1234567890 --message \"Check this out!\" --image image.jpg\n\n  # Send Email\n  ccai --type email --client-id YOUR_ID --api-key YOUR_KEY --first-name John --last-name Doe --email john@example.com --subject \"Hello\" --message \"<p>Hello John!</p>\" --sender-email sender@example.com --reply-email reply@example.com --sender-name \"Your Company\"\n"
 
   opts.on("--client-id ID", "CCAI client ID") do |v|
     options[:client_id] = v
@@ -40,6 +46,30 @@ OptionParser.new do |opts|
 
   opts.on("--phone PHONE", "Recipient's phone number (E.164 format)") do |v|
     options[:phone] = v
+  end
+
+  opts.on("--email EMAIL", "Recipient's email address") do |v|
+    options[:email] = v
+  end
+
+  opts.on("--type TYPE", "Message type: sms, mms, or email (default: sms)") do |v|
+    options[:type] = v
+  end
+
+  opts.on("--subject SUBJECT", "Email subject (required for email)") do |v|
+    options[:subject] = v
+  end
+
+  opts.on("--sender-email EMAIL", "Sender email address (required for email)") do |v|
+    options[:sender_email] = v
+  end
+
+  opts.on("--reply-email EMAIL", "Reply-to email address (required for email)") do |v|
+    options[:reply_email] = v
+  end
+
+  opts.on("--sender-name NAME", "Sender name (required for email)") do |v|
+    options[:sender_name] = v
   end
 
   opts.on("--message MESSAGE", "Message content") do |v|
@@ -69,8 +99,21 @@ OptionParser.new do |opts|
   end
 end.parse!
 
-# Check required options
-required = [:client_id, :api_key, :first_name, :last_name, :phone, :message]
+# Check required options based on message type
+required = [:client_id, :api_key, :first_name, :last_name, :message]
+
+case options[:type]
+when 'email'
+  required += [:email, :subject, :sender_email, :reply_email, :sender_name]
+when 'mms'
+  required += [:phone]
+  if options[:image_path]
+    required += [:content_type]
+  end
+else # sms
+  required += [:phone]
+end
+
 missing = required.select { |param| options[param].nil? }
 
 if missing.any?
@@ -90,29 +133,52 @@ ccai_options = CCAI::SMS::Options.new(
   on_progress: ->(status) { puts "Progress: #{status}" }
 )
 
-# Create account
-account = CCAI::SMS::Account.new(
-  first_name: options[:first_name],
-  last_name: options[:last_name],
-  phone: options[:phone]
-)
-
-# Send message
+# Send message based on type
 begin
-  response = if options[:image_path]
-    # Send MMS
-    puts "Sending MMS..."
-    client.mms.send_with_image(
-      options[:image_path],
-      options[:content_type],
-      [account],
+  response = case options[:type]
+  when 'email'
+    puts "Sending Email..."
+    client.email.send_single(
+      options[:first_name],
+      options[:last_name],
+      options[:email],
+      options[:subject],
       options[:message],
+      options[:sender_email],
+      options[:reply_email],
+      options[:sender_name],
       options[:title],
       ccai_options
     )
-  else
-    # Send SMS
+  when 'mms'
+    puts "Sending MMS..."
+    account = CCAI::SMS::Account.new(
+      first_name: options[:first_name],
+      last_name: options[:last_name],
+      phone: options[:phone]
+    )
+    
+    if options[:image_path]
+      client.mms.send_with_image(
+        options[:image_path],
+        options[:content_type],
+        [account],
+        options[:message],
+        options[:title],
+        ccai_options
+      )
+    else
+      puts "Error: Image path is required for MMS"
+      exit 1
+    end
+  else # sms
     puts "Sending SMS..."
+    account = CCAI::SMS::Account.new(
+      first_name: options[:first_name],
+      last_name: options[:last_name],
+      phone: options[:phone]
+    )
+    
     client.sms.send(
       [account],
       options[:message],
@@ -122,10 +188,22 @@ begin
   end
 
   puts "Message sent successfully!"
-  puts "ID: #{response.id}"
-  puts "Status: #{response.status}"
-  puts "Campaign ID: #{response.campaign_id}"
-  puts "Messages sent: #{response.messages_sent}"
+  if response.respond_to?(:id) && response.id
+    puts "ID: #{response.id}"
+  end
+  if response.respond_to?(:status) && response.status
+    puts "Status: #{response.status}"
+  end
+  if response.respond_to?(:campaign_id) && response.campaign_id
+    puts "Campaign ID: #{response.campaign_id}"
+  elsif response.is_a?(Hash) && response['campaignId']
+    puts "Campaign ID: #{response['campaignId']}"
+  end
+  if response.respond_to?(:messages_sent) && response.messages_sent
+    puts "Messages sent: #{response.messages_sent}"
+  elsif response.is_a?(Hash) && response['messagesSent']
+    puts "Messages sent: #{response['messagesSent']}"
+  end
 rescue => e
   puts "Error: #{e.message}"
   exit 1
