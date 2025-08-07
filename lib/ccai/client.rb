@@ -20,7 +20,7 @@ module CCAI
     # @param client_id [String] Client ID for authentication
     # @param api_key [String] API key for authentication
     # @param base_url [String] Base URL for the API
-    def initialize(client_id:, api_key:, base_url: 'https://core.cloudcontactai.com/api')
+    def initialize(client_id:, api_key:, base_url: 'https://core-test-cloudcontactai.allcode.com/api')
       @client_id = client_id
       @api_key = api_key
       @base_url = base_url

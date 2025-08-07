@@ -23,7 +23,7 @@ module CCAI
     config = Config.new(
       client_id: client_id,
       api_key: api_key,
-      base_url: base_url || 'https://core.cloudcontactai.com/api'
+      base_url: base_url || 'https://core-test-cloudcontactai.allcode.com/api'
     )
     Client.new(config)
   end

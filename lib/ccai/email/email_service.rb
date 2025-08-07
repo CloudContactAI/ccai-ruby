@@ -10,7 +10,7 @@ module CCAI
   module Email
     # Service for sending email campaigns through the CCAI API
     class EmailService
-      BASE_URL = 'https://email-campaigns.cloudcontactai.com/api/v1'
+      BASE_URL = 'https://email-campaigns-test-cloudcontactai.allcode.com/api/v1'
 
       # Create a new EmailService instance
       #
@@ -92,12 +92,16 @@ module CCAI
       # @param data [Hash, nil] Request data
       # @return [Hash] API response
       def custom_request(method, endpoint, data = nil)
-        url = "#{BASE_URL}#{endpoint}"
+        # Try adding ?send=true to trigger immediate sending
+        url = "#{BASE_URL}#{endpoint}?send=true"
         
         connection = Faraday.new do |conn|
           conn.headers['Authorization'] = "Bearer #{@client.api_key}"
           conn.headers['Content-Type'] = 'application/json'
           conn.headers['Accept'] = '*/*'
+          conn.headers['AccountId'] = ENV['CCAI_ACCOUNT_ID'] || '1223'
+          conn.headers['ClientId'] = @client.client_id
+          conn.headers['Origin'] = 'https://test-cloudcontactai.allcode.com'
         end
 
         begin
