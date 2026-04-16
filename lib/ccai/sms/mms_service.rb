@@ -5,6 +5,7 @@
 
 require 'faraday/multipart'
 require 'ccai/sms/models'
+require 'digest'
 
 module CCAI
   module SMS
@@ -15,9 +16,9 @@ module CCAI
       # @param client [CCAI::Client] The parent CCAI client
       def initialize(client)
         @client = client
-        @http_client = Faraday.new do |conn|
+        @upload_client = Faraday.new
+        @api_client = Faraday.new do |conn|
           conn.headers['Authorization'] = "Bearer #{client.api_key}"
-          conn.request :multipart
         end
       end
 
@@ -48,22 +49,22 @@ module CCAI
         }
 
         begin
-          response = @http_client.post(
-            'https://files.cloudcontactai.com/upload/url',
+          response = @api_client.post(
+            "#{@client.files_base_url}/upload/url",
             data.to_json,
             'Content-Type' => 'application/json'
           )
 
           if response.success?
             response_data = JSON.parse(response.body)
-            
+
             if response_data['signedS3Url'].nil?
               raise CCAI::Error.new('Invalid response from upload URL API')
             end
-            
+
             # Override the fileKey with our explicitly defined one
             response_data['fileKey'] = file_key
-            
+
             SignedUrlResponse.new(response_data)
           else
             raise CCAI::Error.new("API Error: #{response.status} - #{response.body}")
@@ -89,14 +90,35 @@ module CCAI
 
         begin
           file_content = File.binread(file_path)
+          file_content.force_encoding(Encoding::BINARY)
+
+          # Use raw HTTP PUT request directly (like Go and Node)
+          require 'net/http'
+          uri = URI(signed_url)
+          http = Net::HTTP.new(uri.host, uri.port)
+          http.use_ssl = uri.scheme == 'https'
+
+          # Start connection and force binary mode on socket to prevent
+          # CRLF conversion on Windows (LF -> CRLF corrupts binary data)
+          http.start
+          socket = http.instance_variable_get(:@socket)
+          if socket
+            raw_io = socket.io
+            raw_io.binmode if raw_io.respond_to?(:binmode)
+          end
+
+          # Create request with full path including query parameters
+          path = uri.path
+          path += '?' + uri.query if uri.query
           
-          response = @http_client.put(
-            signed_url,
-            file_content,
-            'Content-Type' => content_type
-          )
+          request = Net::HTTP::Put.new(path)
+          request['Content-Type'] = content_type
+          request['Content-Length'] = file_content.bytesize.to_s
+          request.body = file_content
           
-          response.success?
+          response = http.request(request)
+          http.finish
+          response.code.to_i >= 200 && response.code.to_i < 300
         rescue => e
           raise CCAI::Error.new("Failed to upload file: #{e.message}")
         end
@@ -108,11 +130,12 @@ module CCAI
       # @param accounts [Array<CCAI::SMS::Account>] List of recipient accounts
       # @param message [String] Message content (can include ${firstName} and ${lastName} variables)
       # @param title [String] Campaign title
+      # @param sender_phone [String, nil] Optional sender phone number
       # @param options [CCAI::SMS::Options, nil] Optional settings for the MMS send operation
       # @param force_new_campaign [Boolean] Whether to force a new campaign (default: true)
       # @return [CCAI::SMS::Response] API response
       # @raise [ArgumentError] If required parameters are missing or invalid
-      def send(picture_file_key, accounts, message, title, options = nil, force_new_campaign = true)
+      def send(picture_file_key, accounts, message, title, sender_phone = nil, options = nil, force_new_campaign = true)
         # Validate inputs
         raise ArgumentError, 'Picture file key is required' if picture_file_key.nil? || picture_file_key.empty?
         raise ArgumentError, 'At least one account is required' if accounts.nil? || accounts.empty?
@@ -137,6 +160,7 @@ module CCAI
           message: message,
           title: title
         }
+        campaign_data[:senderPhone] = sender_phone if sender_phone
 
         # Set up headers for force new campaign if needed
         headers = force_new_campaign ? { 'ForceNewCampaign' => 'true' } : nil
@@ -169,17 +193,20 @@ module CCAI
       # @param phone [String] Recipient's phone number (E.164 format)
       # @param message [String] Message content (can include ${firstName} and ${lastName} variables)
       # @param title [String] Campaign title
+      # @param custom_data [String, nil] Optional arbitrary string forwarded to your webhook handler (sent as messageData)
+      # @param sender_phone [String, nil] Optional sender phone number
       # @param options [CCAI::SMS::Options, nil] Optional settings for the MMS send operation
       # @param force_new_campaign [Boolean] Whether to force a new campaign (default: true)
       # @return [CCAI::SMS::Response] API response
-      def send_single(picture_file_key, first_name, last_name, phone, message, title, options = nil, force_new_campaign = true)
+      def send_single(picture_file_key, first_name, last_name, phone, message, title, custom_data = nil, sender_phone = nil, options = nil, force_new_campaign = true)
         account = Account.new(
           first_name: first_name,
           last_name: last_name,
-          phone: phone
+          phone: phone,
+          custom_data: custom_data
         )
 
-        send(picture_file_key, [account], message, title, options, force_new_campaign)
+        send(picture_file_key, [account], message, title, sender_phone, options, force_new_campaign)
       end
 
       # Complete MMS workflow: get signed URL, upload image, and send MMS
@@ -189,41 +216,68 @@ module CCAI
       # @param accounts [Array<CCAI::SMS::Account>] List of recipient accounts
       # @param message [String] Message content (can include ${firstName} and ${lastName} variables)
       # @param title [String] Campaign title
+      # @param sender_phone [String, nil] Optional sender phone number
       # @param options [CCAI::SMS::Options, nil] Optional settings for the MMS send operation
       # @param force_new_campaign [Boolean] Whether to force a new campaign (default: true)
       # @return [CCAI::SMS::Response] API response
       # @raise [ArgumentError] If required parameters are missing or invalid
       # @raise [CCAI::Error] If any step of the process fails
-      def send_with_image(image_path, content_type, accounts, message, title, options = nil, force_new_campaign = true)
+      def send_with_image(image_path, content_type, accounts, message, title, sender_phone = nil, options = nil, force_new_campaign = true)
         # Create options if not provided
         options ||= Options.new
 
-        # Step 1: Get the file name from the path
-        file_name = File.basename(image_path)
+        # Step 1: Compute MD5 of the image file for caching
+        md5_image = md5_file(image_path)
+        extension = File.extname(image_path).delete('.').downcase
+        file_name = "#{md5_image}.#{extension}"
+        file_key = "#{@client.client_id}/campaign/#{file_name}"
 
-        # Notify progress if callback provided
+        # Step 2: Check if the same image has already been uploaded
+        options.notify_progress('Checking if image already uploaded')
+        stored_url_response = check_file_uploaded(file_key)
+
+        if stored_url_response && !stored_url_response['storedUrl'].to_s.empty?
+          # Image already uploaded, skip upload and send directly
+          options.notify_progress('Image already exists in S3, sending MMS')
+          return send(file_key, accounts, message, title, sender_phone, options, force_new_campaign)
+        end
+
+        # Step 3: Get a signed URL for uploading
         options.notify_progress('Getting signed upload URL')
-
-        # Step 2: Get a signed URL for uploading
         upload_response = get_signed_upload_url(file_name, content_type)
         signed_url = upload_response.signed_s3_url
-        file_key = upload_response.file_key
 
-        # Notify progress if callback provided
+        # Step 4: Upload the image to the signed URL
         options.notify_progress('Uploading image to S3')
-
-        # Step 3: Upload the image to the signed URL
         upload_success = upload_image_to_signed_url(signed_url, image_path, content_type)
 
         unless upload_success
           raise CCAI::Error.new('Failed to upload image to S3')
         end
 
-        # Notify progress if callback provided
+        # Step 5: Send the MMS with the uploaded image
         options.notify_progress('Image uploaded successfully, sending MMS')
+        send(file_key, accounts, message, title, sender_phone, options, force_new_campaign)
+      end
 
-        # Step 4: Send the MMS with the uploaded image
-        send(file_key, accounts, message, title, options, force_new_campaign)
+      # Check if a file has already been uploaded to S3
+      #
+      # @param file_key [String] The S3 file key to check
+      # @return [Hash, nil] Response containing storedUrl, or nil on error
+      def check_file_uploaded(file_key)
+        @client.request(:get, "/clients/#{@client.client_id}/storedUrl?fileKey=#{file_key}")
+      rescue CCAI::Error
+        { 'storedUrl' => '' }
+      end
+
+      private
+
+      # Calculate the MD5 hash of a file
+      #
+      # @param file_path [String] Path to the file
+      # @return [String] MD5 hash in hexadecimal format
+      def md5_file(file_path)
+        Digest::MD5.file(file_path).hexdigest
       end
     end
   end

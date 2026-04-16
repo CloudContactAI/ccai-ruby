@@ -114,6 +114,30 @@ response = client.email.send_campaign(campaign)
 puts "Campaign sent with ID: #{response['campaignId']}"
 ```
 
+### Contact
+
+Manage opt-out preferences for contacts.
+
+```ruby
+require 'ccai'
+
+# Initialize the client
+client = CCAI.new(
+  client_id: 'YOUR-CLIENT-ID',
+  api_key: 'YOUR-API-KEY'
+)
+
+# Opt a contact out of text messages (by phone)
+result = client.contact.set_do_not_text(true, phone: '+15551234567')
+puts "Opted out: #{result}"
+
+# Opt a contact back in
+client.contact.set_do_not_text(false, phone: '+15551234567')
+
+# Opt out by contact_id
+client.contact.set_do_not_text(true, contact_id: 'contact-abc-123')
+```
+
 ### Webhooks
 
 ```ruby
@@ -125,35 +149,58 @@ client = CCAI.new(
   api_key: 'YOUR-API-KEY'
 )
 
-# Register a webhook
+# Example 1: Register a webhook with auto-generated secret
+# If secret is not provided, the server will auto-generate one
 config = {
   url: 'https://your-app.com/webhooks/ccai',
-  events: [CCAI::Webhook::EventType::MESSAGE_SENT, CCAI::Webhook::EventType::MESSAGE_RECEIVED],
-  secret: 'your-webhook-secret'
+  events: [CCAI::Webhook::EventType::MESSAGE_SENT, CCAI::Webhook::EventType::MESSAGE_RECEIVED]
+  # secret not provided - server will auto-generate and return it
 }
 
 webhook = client.webhook.register(config)
 puts "Webhook registered with ID: #{webhook['id']}"
+puts "Auto-generated Secret: #{webhook['secretKey']}"
+
+# Example 2: Register a webhook with a custom secret
+config_custom = {
+  url: 'https://your-app.com/webhooks/ccai-v2',
+  events: [CCAI::Webhook::EventType::MESSAGE_SENT, CCAI::Webhook::EventType::MESSAGE_RECEIVED],
+  secret: 'my-custom-secret-key'
+}
+
+webhook_custom = client.webhook.register(config_custom)
+puts "Webhook with custom secret registered: #{webhook_custom['id']}"
 
 # List all webhooks
 webhooks = client.webhook.list
 puts "Registered webhooks: #{webhooks.length}"
 
 # Update a webhook
-client.webhook.update(webhook['id'], { url: 'https://your-app.com/new-webhook' })
+updated = client.webhook.update(webhook['id'], { url: 'https://your-app.com/new-webhook' })
+puts "Webhook updated: #{updated['url']}"
 
 # Delete a webhook
-client.webhook.delete(webhook['id'])
+result = client.webhook.delete(webhook['id'])
+puts "Webhook deleted" if result['success']
 
 # Verify webhook signature (in your webhook handler)
 signature = request.headers['X-CCAI-Signature']
 body = request.raw_body
-secret = 'your-webhook-secret'
+secret = 'your-webhook-secret'  # Use the secret returned during registration
 
-if client.webhook.verify_signature(signature, body, secret)
+# Parse the webhook payload to get client_id and event_hash
+payload = JSON.parse(body)
+client_id = ENV['CCAI_CLIENT_ID']
+event_hash = payload['eventHash']
+
+if client.webhook.verify_signature(signature, client_id, event_hash, secret)
   # Process the webhook
+  event = client.webhook.parse_event(body)
+  puts "Webhook event type: #{event['eventType']}"
+  puts "Webhook data: #{event['data']}"
 else
   # Invalid signature
+  puts "Invalid signature"
 end
 ```
 
@@ -306,15 +353,22 @@ ccai --type email --client-id YOUR-CLIENT-ID --api-key YOUR-API-KEY \
 ## Features
 
 - Send SMS messages to single or multiple recipients
-- Send MMS messages with images
+- Send MMS messages with images (automatic S3 upload)
 - Send email campaigns with HTML content
-- Upload images to S3 with signed URLs
-- Manage webhooks for real-time event notifications
-- Variable substitution in messages
+- Manage contact opt-out preferences (set_do_not_text)
+- Manage webhooks: register, list, update, delete
+- Webhook signature verification (HMAC-SHA256 with Base64 encoding)
+- Template variable substitution (`${firstName}`, `${lastName}`)
 - Progress tracking via callbacks
 - Comprehensive error handling
 - Full test coverage
 - Command-line interface for SMS, MMS, and Email
+
+## Removed Functionality
+
+The following methods have been removed as they do not exist in the backend API:
+- `SMSService#get_campaign_status()` - Use backend API directly for campaign status
+- `EmailService#get_campaign_status()` - Use backend API directly for campaign status
 
 ## Development
 

@@ -16,9 +16,16 @@ class TestEmailService < Minitest::Test
   end
 
   def test_send_single_email
-    # Mock the HTTP response
     stub_request(:post, "https://email-campaigns.cloudcontactai.com/api/v1/campaigns")
-      .to_return(status: 200, body: '{"id": "123", "status": "sent"}')
+      .with(
+        headers: {
+          'Authorization' => 'Bearer test_api_key',
+          'Content-Type' => 'application/json',
+          'AccountId' => 'test_client_id',
+          'ClientId' => 'test_client_id'
+        }
+      )
+      .to_return(status: 200, body: '{"id": "123", "status": "sent"}', headers: { 'Content-Type' => 'application/json' })
 
     response = @email_service.send_single(
       'John',
@@ -37,9 +44,8 @@ class TestEmailService < Minitest::Test
   end
 
   def test_send_campaign
-    # Mock the HTTP response
     stub_request(:post, "https://email-campaigns.cloudcontactai.com/api/v1/campaigns")
-      .to_return(status: 200, body: '{"campaignId": "456", "messagesSent": 2}')
+      .to_return(status: 200, body: '{"campaignId": "456", "messagesSent": 2}', headers: { 'Content-Type' => 'application/json' })
 
     campaign = {
       subject: 'Test Subject',
@@ -66,9 +72,8 @@ class TestEmailService < Minitest::Test
   end
 
   def test_send_campaign_with_progress_callback
-    # Mock the HTTP response
     stub_request(:post, "https://email-campaigns.cloudcontactai.com/api/v1/campaigns")
-      .to_return(status: 200, body: '{"campaignId": "789"}')
+      .to_return(status: 200, body: '{"campaignId": "789"}', headers: { 'Content-Type' => 'application/json' })
 
     progress_messages = []
     options = CCAI::SMS::Options.new(
@@ -98,17 +103,14 @@ class TestEmailService < Minitest::Test
   end
 
   def test_validation_errors
-    # Test missing accounts
-    assert_raises(ArgumentError, 'At least one account is required') do
+    assert_raises(ArgumentError) do
       @email_service.send_campaign({ accounts: [] })
     end
 
-    # Test missing subject
-    assert_raises(ArgumentError, 'Subject is required') do
+    assert_raises(ArgumentError) do
       @email_service.send_campaign({ accounts: [{}] })
     end
 
-    # Test missing required account fields
     assert_raises(ArgumentError) do
       @email_service.send_campaign({
         subject: 'Test',
@@ -117,23 +119,90 @@ class TestEmailService < Minitest::Test
         senderEmail: 'test@example.com',
         replyEmail: 'test@example.com',
         senderName: 'Test',
-        accounts: [{ firstName: 'John' }] # Missing lastName and email
+        accounts: [{ firstName: 'John' }]
       })
     end
   end
 
-  private
+  def test_send_campaign_with_custom_account_id_and_data
+    stub_request(:post, "https://email-campaigns.cloudcontactai.com/api/v1/campaigns")
+      .with(
+        body: hash_including(
+          accounts: [hash_including(
+            firstName: 'John',
+            customAccountId: 'ext-id-123',
+            data: { tier: 'gold', locale: 'en-US' }
+          )]
+        )
+      )
+      .to_return(
+        status: 200,
+        body: { id: '123', status: 'PENDING', message: 'Email sent', responseId: 'resp-xyz' }.to_json,
+        headers: { 'Content-Type' => 'application/json' }
+      )
 
-  def stub_request(method, url)
-    # This would typically use WebMock or similar for actual HTTP stubbing
-    # For now, we'll just return a mock object
-    MockStub.new
+    campaign = {
+      subject: 'Test', title: 'Test', message: '<p>Test</p>',
+      senderEmail: 'sender@example.com', replyEmail: 'reply@example.com',
+      senderName: 'Sender',
+      accounts: [{
+        firstName: 'John', lastName: 'Doe', email: 'john@example.com', phone: '',
+        customAccountId: 'ext-id-123',
+        data: { tier: 'gold', locale: 'en-US' }
+      }],
+      campaignType: 'EMAIL', addToList: 'noList', contactInput: 'accounts',
+      fromType: 'single', senders: []
+    }
+
+    response = @email_service.send_campaign(campaign)
+
+    assert_equal '123', response['id']
+    assert_equal 'Email sent', response['message']
+    assert_equal 'resp-xyz', response['responseId']
   end
 
-  class MockStub
-    def to_return(options)
-      # Mock implementation
-      self
-    end
+  def test_send_single_with_data_and_custom_account_id
+    stub_request(:post, "https://email-campaigns.cloudcontactai.com/api/v1/campaigns")
+      .with(
+        body: hash_including(
+          accounts: [hash_including(
+            firstName: 'Bob',
+            customAccountId: 'ext-id-456',
+            data: { city: 'Miami', plan: 'premium' }
+          )]
+        )
+      )
+      .to_return(status: 200, body: '{"id": "789", "status": "sent"}', headers: { 'Content-Type' => 'application/json' })
+
+    response = @email_service.send_single(
+      'Bob', 'Smith', 'bob@example.com',
+      'Hello', '<p>Hi Bob</p>',
+      'sender@example.com', 'reply@example.com', 'Sender', 'Campaign',
+      nil,
+      data: { city: 'Miami', plan: 'premium' },
+      custom_account_id: 'ext-id-456'
+    )
+
+    assert_equal '789', response['id']
+  end
+
+  def test_email_uses_client_url_not_hardcoded
+    config = CCAI::Config.new(
+      client_id: 'test_client_id',
+      api_key: 'test_api_key',
+      use_test_environment: true
+    )
+    client = CCAI::Client.new(config)
+
+    stub_request(:post, "https://email-campaigns-test-cloudcontactai.allcode.com/api/v1/campaigns")
+      .to_return(status: 200, body: '{"id":"1"}', headers: { 'Content-Type' => 'application/json' })
+
+    response = client.email.send_single(
+      'John', 'Doe', 'john@example.com',
+      'Subject', '<p>Msg</p>',
+      'sender@example.com', 'reply@example.com', 'Sender', 'Title'
+    )
+
+    assert_equal '1', response['id']
   end
 end

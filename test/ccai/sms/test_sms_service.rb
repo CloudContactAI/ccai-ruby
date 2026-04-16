@@ -117,10 +117,69 @@ class TestSMSService < Minitest::Test
     assert_raises CCAI::Error do
       @client.sms.send([@account], @message, @title, options)
     end
-    
-    assert_equal 2, progress_updates.size
+
+    assert_equal 3, progress_updates.size
     assert_equal 'Preparing to send SMS', progress_updates[0]
-    assert_equal 'SMS sending failed', progress_updates[1]
+    assert_equal 'Sending SMS', progress_updates[1]
+    assert_equal 'SMS sending failed', progress_updates[2]
+  end
+
+  def test_send_with_custom_fields_and_custom_data
+    stub_request(:post, "#{@client.base_url}/clients/#{@client_id}/campaigns/direct")
+      .with(
+        body: hash_including(
+          accounts: [hash_including(
+            firstName: 'John',
+            lastName: 'Doe',
+            phone: '+15551234567',
+            data: { city: 'Miami', country: 'USA', plan: 'premium' },
+            messageData: '{"source":"ruby-sdk-test"}'
+          )]
+        )
+      )
+      .to_return(
+        status: 200,
+        body: {
+          id: 'msg-cf-123',
+          status: 'sent',
+          message: 'SMS sent successfully',
+          responseId: 'resp-abc-456'
+        }.to_json,
+        headers: { 'Content-Type' => 'application/json' }
+      )
+
+    account = CCAI::SMS::Account.new(
+      first_name: 'John',
+      last_name: 'Doe',
+      phone: '+15551234567',
+      data: { city: 'Miami', country: 'USA', plan: 'premium' },
+      custom_data: '{"source":"ruby-sdk-test"}'
+    )
+
+    response = @client.sms.send([account], 'Hello ${firstName} from ${city}!', 'Test data field')
+
+    assert_equal 'msg-cf-123', response.id
+    assert_equal 'SMS sent successfully', response.message
+    assert_equal 'resp-abc-456', response.response_id
+  end
+
+  def test_response_message_and_response_id
+    stub_request(:post, "#{@client.base_url}/clients/#{@client_id}/campaigns/direct")
+      .to_return(
+        status: 200,
+        body: {
+          id: 'msg-123',
+          status: 'sent',
+          message: 'SMS sent successfully',
+          responseId: 'resp-id-xyz'
+        }.to_json,
+        headers: { 'Content-Type' => 'application/json' }
+      )
+
+    response = @client.sms.send([@account], @message, @title)
+
+    assert_equal 'SMS sent successfully', response.message
+    assert_equal 'resp-id-xyz', response.response_id
   end
 
   def test_send_single
@@ -143,7 +202,7 @@ class TestSMSService < Minitest::Test
         body: { id: 'msg-123', status: 'sent' }.to_json,
         headers: { 'Content-Type' => 'application/json' }
       )
-    
+
     response = @client.sms.send_single(
       'Jane',
       'Smith',
@@ -151,8 +210,9 @@ class TestSMSService < Minitest::Test
       'Hi ${firstName}, thanks for your interest!',
       'Single Message Test'
     )
-    
+
     assert_equal 'msg-123', response.id
     assert_equal 'sent', response.status
   end
+
 end

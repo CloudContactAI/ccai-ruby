@@ -24,6 +24,22 @@ class TestClient < Minitest::Test
     assert_equal 'https://core.cloudcontactai.com/api', client.base_url
   end
 
+  def test_new_client_with_test_environment
+    client = CCAI.new(client_id: @client_id, api_key: @api_key, use_test_environment: true)
+    assert_equal 'https://core-test-cloudcontactai.allcode.com/api', client.base_url
+    assert_equal 'https://email-campaigns-test-cloudcontactai.allcode.com/api/v1', client.email_base_url
+    assert_equal 'https://files-test-cloudcontactai.allcode.com', client.files_base_url
+    assert client.test_environment?
+  end
+
+  def test_new_client_with_production_default
+    client = CCAI.new(client_id: @client_id, api_key: @api_key)
+    assert_equal 'https://core.cloudcontactai.com/api', client.base_url
+    assert_equal 'https://email-campaigns.cloudcontactai.com/api/v1', client.email_base_url
+    assert_equal 'https://files.cloudcontactai.com', client.files_base_url
+    refute client.test_environment?
+  end
+
   def test_new_client_with_empty_client_id
     assert_raises ArgumentError do
       CCAI.new(client_id: '', api_key: @api_key)
@@ -40,11 +56,14 @@ class TestClient < Minitest::Test
     client = CCAI.new(client_id: @client_id, api_key: @api_key)
     assert_instance_of CCAI::SMS::SMSService, client.sms
     assert_instance_of CCAI::SMS::MMSService, client.mms
+    assert_instance_of CCAI::Email::EmailService, client.email
+    assert_instance_of CCAI::Webhook::WebhookService, client.webhook
+    assert_instance_of CCAI::Contact::ContactService, client.contact
   end
 
   def test_request_success
     client = CCAI.new(client_id: @client_id, api_key: @api_key)
-    
+
     stub_request(:get, "#{client.base_url}/test-endpoint")
       .with(
         headers: {
@@ -58,7 +77,7 @@ class TestClient < Minitest::Test
         body: '{"id":"test-id","status":"success"}',
         headers: { 'Content-Type' => 'application/json' }
       )
-    
+
     response = client.request(:get, '/test-endpoint')
     assert_equal 'test-id', response['id']
     assert_equal 'success', response['status']
@@ -66,7 +85,7 @@ class TestClient < Minitest::Test
 
   def test_request_with_data
     client = CCAI.new(client_id: @client_id, api_key: @api_key)
-    
+
     stub_request(:post, "#{client.base_url}/test-endpoint")
       .with(
         body: '{"test":"data"}',
@@ -81,7 +100,7 @@ class TestClient < Minitest::Test
         body: '{"id":"test-id","status":"success"}',
         headers: { 'Content-Type' => 'application/json' }
       )
-    
+
     response = client.request(:post, '/test-endpoint', { test: 'data' })
     assert_equal 'test-id', response['id']
     assert_equal 'success', response['status']
@@ -89,7 +108,7 @@ class TestClient < Minitest::Test
 
   def test_request_with_headers
     client = CCAI.new(client_id: @client_id, api_key: @api_key)
-    
+
     stub_request(:post, "#{client.base_url}/test-endpoint")
       .with(
         body: '{"test":"data"}',
@@ -105,7 +124,7 @@ class TestClient < Minitest::Test
         body: '{"id":"test-id","status":"success"}',
         headers: { 'Content-Type' => 'application/json' }
       )
-    
+
     response = client.request(:post, '/test-endpoint', { test: 'data' }, { 'Custom-Header' => 'custom-value' })
     assert_equal 'test-id', response['id']
     assert_equal 'success', response['status']
@@ -113,14 +132,14 @@ class TestClient < Minitest::Test
 
   def test_request_error
     client = CCAI.new(client_id: @client_id, api_key: @api_key)
-    
+
     stub_request(:get, "#{client.base_url}/test-endpoint")
       .to_return(
         status: 400,
         body: '{"error":"Bad request"}',
         headers: { 'Content-Type' => 'application/json' }
       )
-    
+
     assert_raises CCAI::Error do
       client.request(:get, '/test-endpoint')
     end

@@ -7,34 +7,45 @@ module CCAI
   module SMS
     # Account model representing a recipient
     class Account
-      attr_accessor :first_name, :last_name, :phone
+      attr_accessor :first_name, :last_name, :phone,
+                    :data, :custom_data
 
       # Create a new Account instance
       #
       # @param first_name [String] Recipient's first name
       # @param last_name [String] Recipient's last name
       # @param phone [String] Recipient's phone number in E.164 format
-      def initialize(first_name:, last_name:, phone:)
+      # @param data [Hash, nil] Additional key-value pairs for variable substitution.
+      #   Use ${key} in your message. Sent to the API as "data".
+      # @param custom_data [String, nil] Arbitrary string forwarded as-is to your webhook handler.
+      #   Not used in the message body. Sent to the API as "messageData".
+      def initialize(first_name:, last_name:, phone:, data: nil, custom_data: nil)
         @first_name = first_name
         @last_name = last_name
         @phone = phone
+        @data = data
+        @custom_data = custom_data
       end
 
       # Convert the account to a hash for API requests
       #
       # @return [Hash] Account data
       def to_hash
-        {
+        hash = {
           firstName: @first_name,
           lastName: @last_name,
           phone: @phone
         }
+        hash[:data] = @data if @data
+        hash[:messageData] = @custom_data if @custom_data
+        hash
       end
     end
 
     # Response from the SMS API
     class Response
-      attr_accessor :id, :status, :campaign_id, :messages_sent, :timestamp, :data
+      attr_accessor :id, :status, :campaign_id, :messages_sent, :timestamp,
+                    :message, :response_id, :data
 
       # Create a new Response instance
       #
@@ -46,6 +57,8 @@ module CCAI
         @campaign_id = data['campaignId']
         @messages_sent = data['messagesSent']
         @timestamp = data['timestamp']
+        @message = data['message']
+        @response_id = data['responseId']
       end
 
       # Get a value from the response data
