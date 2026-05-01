@@ -4,6 +4,8 @@
 # Licensed under the MIT License. See LICENSE in the project root for license information.
 
 require 'test_helper'
+require 'digest'
+require 'tmpdir'
 
 class TestMMSService < Minitest::Test
   def setup
@@ -237,101 +239,175 @@ class TestMMSService < Minitest::Test
   end
 
   def test_send_with_image
-    # Mock the component methods
-    mock_upload_response = CCAI::SMS::SignedUrlResponse.new({
-      'signedS3Url' => @signed_url,
-      'fileKey' => @picture_file_key
-    })
-    
-    mock_send_response = CCAI::SMS::Response.new({
-      'id' => 'msg-123',
-      'status' => 'sent',
-      'campaignId' => 'camp-456',
-      'messagesSent' => 1
-    })
-    
-    # Create a mock MMS service
-    mock_mms = Minitest::Mock.new
-    
-    # Set up expectations
-    mock_mms.expect :get_signed_upload_url, mock_upload_response, [@file_name, @content_type]
-    mock_mms.expect :upload_image_to_signed_url, true, [@signed_url, @file_path, @content_type]
-    mock_mms.expect :send, mock_send_response, [@picture_file_key, [@account], @message, @title, nil, true]
-    
-    # Replace the real methods with mocks
-    @client.mms.stub :get_signed_upload_url, mock_mms.method(:get_signed_upload_url) do
-      @client.mms.stub :upload_image_to_signed_url, mock_mms.method(:upload_image_to_signed_url) do
-        @client.mms.stub :send, mock_mms.method(:send) do
-          # Test with progress tracking
-          progress_updates = []
-          options = CCAI::SMS::Options.new(
-            on_progress: ->(status) { progress_updates << status }
-          )
-          
-          # Call the method under test
-          File.stub :basename, @file_name do
-            response = @client.mms.send_with_image(
-              @file_path,
-              @content_type,
-              [@account],
-              @message,
-              @title,
-              options
-            )
-            
-            # Verify the response
-            assert_equal 'msg-123', response.id
-            assert_equal 'sent', response.status
-            assert_equal 'camp-456', response.campaign_id
-            assert_equal 1, response.messages_sent
-            
-            # Verify progress updates
-            assert_equal 3, progress_updates.size
-            assert_equal 'Getting signed upload URL', progress_updates[0]
-            assert_equal 'Uploading image to S3', progress_updates[1]
-            assert_equal 'Image uploaded successfully, sending MMS', progress_updates[2]
-          end
-        end
-      end
-    end
-    
-    # Verify all expectations were met
-    mock_mms.verify
+    temp_file = File.join(Dir.tmpdir, 'ccai_test_mms.jpg')
+    File.write(temp_file, 'test image content')
+
+    md5_hash = Digest::MD5.file(temp_file).hexdigest
+    expected_file_key = "#{@client_id}/campaign/#{md5_hash}.jpg"
+
+    # Step 1: checkFileUploaded returns empty (file not cached)
+    stub_request(:get, "#{@client.base_url}/clients/#{@client_id}/storedUrl?fileKey=#{expected_file_key}")
+      .to_return(
+        status: 200,
+        body: { storedUrl: '' }.to_json,
+        headers: { 'Content-Type' => 'application/json' }
+      )
+
+    # Step 2: get signed upload URL
+    stub_request(:post, "https://files.cloudcontactai.com/upload/url")
+      .to_return(
+        status: 200,
+        body: { signedS3Url: @signed_url, fileKey: expected_file_key }.to_json,
+        headers: { 'Content-Type' => 'application/json' }
+      )
+
+    # Step 3: upload image
+    stub_request(:put, @signed_url)
+      .to_return(status: 200)
+
+    # Step 4: send MMS
+    stub_request(:post, "#{@client.base_url}/clients/#{@client_id}/campaigns/direct")
+      .to_return(
+        status: 200,
+        body: { id: 'msg-123', status: 'sent', campaignId: 'camp-456', messagesSent: 1 }.to_json,
+        headers: { 'Content-Type' => 'application/json' }
+      )
+
+    progress_updates = []
+    options = CCAI::SMS::Options.new(
+      on_progress: ->(status) { progress_updates << status }
+    )
+
+    response = @client.mms.send_with_image(
+      temp_file,
+      'image/jpeg',
+      [@account],
+      @message,
+      @title,
+      options
+    )
+
+    assert_equal 'msg-123', response.id
+    assert_equal 'sent', response.status
+    assert_equal 'camp-456', response.campaign_id
+
+    assert_includes progress_updates, 'Checking if image already uploaded'
+    assert_includes progress_updates, 'Getting signed upload URL'
+    assert_includes progress_updates, 'Uploading image to S3'
+    assert_includes progress_updates, 'Image uploaded successfully, sending MMS'
+
+    File.delete(temp_file) if File.exist?(temp_file)
+  end
+
+  def test_send_with_image_cache_hit
+    temp_file = File.join(Dir.tmpdir, 'ccai_test_mms_cache.jpg')
+    File.write(temp_file, 'test image content')
+
+    md5_hash = Digest::MD5.file(temp_file).hexdigest
+    expected_file_key = "#{@client_id}/campaign/#{md5_hash}.jpg"
+
+    # checkFileUploaded returns existing URL (cache hit)
+    stub_request(:get, "#{@client.base_url}/clients/#{@client_id}/storedUrl?fileKey=#{expected_file_key}")
+      .to_return(
+        status: 200,
+        body: { storedUrl: "https://s3.amazonaws.com/bucket/#{md5_hash}.jpg" }.to_json,
+        headers: { 'Content-Type' => 'application/json' }
+      )
+
+    # send MMS — only HTTP call expected (no upload)
+    stub_request(:post, "#{@client.base_url}/clients/#{@client_id}/campaigns/direct")
+      .to_return(
+        status: 200,
+        body: { id: 'msg-789', status: 'sent', campaignId: 'camp-999' }.to_json,
+        headers: { 'Content-Type' => 'application/json' }
+      )
+
+    progress_updates = []
+    options = CCAI::SMS::Options.new(
+      on_progress: ->(status) { progress_updates << status }
+    )
+
+    response = @client.mms.send_with_image(
+      temp_file,
+      'image/jpeg',
+      [@account],
+      @message,
+      @title,
+      options
+    )
+
+    assert_equal 'msg-789', response.id
+    assert_equal 'sent', response.status
+
+    assert_includes progress_updates, 'Checking if image already uploaded'
+    assert_includes progress_updates, 'Image already exists in S3, sending MMS'
+    refute_includes progress_updates, 'Getting signed upload URL'
+    refute_includes progress_updates, 'Uploading image to S3'
+
+    File.delete(temp_file) if File.exist?(temp_file)
   end
 
   def test_send_with_image_upload_failure
-    # Mock the component methods
-    mock_upload_response = CCAI::SMS::SignedUrlResponse.new({
-      'signedS3Url' => @signed_url,
-      'fileKey' => @picture_file_key
-    })
-    
-    # Create a mock MMS service
-    mock_mms = Minitest::Mock.new
-    
-    # Set up expectations
-    mock_mms.expect :get_signed_upload_url, mock_upload_response, [@file_name, @content_type]
-    mock_mms.expect :upload_image_to_signed_url, false, [@signed_url, @file_path, @content_type]
-    
-    # Replace the real methods with mocks
-    @client.mms.stub :get_signed_upload_url, mock_mms.method(:get_signed_upload_url) do
-      @client.mms.stub :upload_image_to_signed_url, mock_mms.method(:upload_image_to_signed_url) do
-        # Call the method under test
-        File.stub :basename, @file_name do
-          assert_raises CCAI::Error do
-            @client.mms.send_with_image(
-              @file_path,
-              @content_type,
-              [@account],
-              @message,
-              @title
-            )
-          end
-        end
-      end
+    temp_file = File.join(Dir.tmpdir, 'ccai_test_mms_fail.jpg')
+    File.write(temp_file, 'test image content')
+
+    md5_hash = Digest::MD5.file(temp_file).hexdigest
+    expected_file_key = "#{@client_id}/campaign/#{md5_hash}.jpg"
+
+    # checkFileUploaded returns empty
+    stub_request(:get, "#{@client.base_url}/clients/#{@client_id}/storedUrl?fileKey=#{expected_file_key}")
+      .to_return(
+        status: 200,
+        body: { storedUrl: '' }.to_json,
+        headers: { 'Content-Type' => 'application/json' }
+      )
+
+    # get signed URL
+    stub_request(:post, "https://files.cloudcontactai.com/upload/url")
+      .to_return(
+        status: 200,
+        body: { signedS3Url: @signed_url, fileKey: expected_file_key }.to_json,
+        headers: { 'Content-Type' => 'application/json' }
+      )
+
+    # upload fails
+    stub_request(:put, @signed_url)
+      .to_return(status: 500)
+
+    assert_raises CCAI::Error do
+      @client.mms.send_with_image(
+        temp_file,
+        'image/jpeg',
+        [@account],
+        @message,
+        @title
+      )
     end
-    
-    # Verify all expectations were met
-    mock_mms.verify
+
+    File.delete(temp_file) if File.exist?(temp_file)
+  end
+
+  def test_check_file_uploaded
+    file_key = "#{@client_id}/campaign/test.jpg"
+    stub_request(:get, "#{@client.base_url}/clients/#{@client_id}/storedUrl?fileKey=#{file_key}")
+      .to_return(
+        status: 200,
+        body: { storedUrl: 'https://s3.amazonaws.com/bucket/test.jpg' }.to_json,
+        headers: { 'Content-Type' => 'application/json' }
+      )
+
+    result = @client.mms.check_file_uploaded(file_key)
+    assert_equal 'https://s3.amazonaws.com/bucket/test.jpg', result['storedUrl']
+  end
+
+  def test_check_file_uploaded_on_error
+    file_key = "#{@client_id}/campaign/nonexistent.jpg"
+    stub_request(:get, "#{@client.base_url}/clients/#{@client_id}/storedUrl?fileKey=#{file_key}")
+      .to_return(status: 404, body: '{}', headers: { 'Content-Type' => 'application/json' })
+
+    # 404 triggers Faraday::Error -> CCAI::Error -> rescue returns {storedUrl: ''}
+    # Actually 404 will raise CCAI::Error which is rescued
+    result = @client.mms.check_file_uploaded(file_key)
+    assert_equal '', result['storedUrl']
   end
 end

@@ -21,10 +21,11 @@ module CCAI
       # @param accounts [Array<CCAI::SMS::Account>] List of recipient accounts
       # @param message [String] Message content (can include ${firstName} and ${lastName} variables)
       # @param title [String] Campaign title
+      # @param sender_phone [String, nil] Optional sender phone number override
       # @param options [CCAI::SMS::Options, nil] Optional settings for the SMS send operation
       # @return [CCAI::SMS::Response] API response
       # @raise [ArgumentError] If required parameters are missing or invalid
-      def send(accounts, message, title, options = nil)
+      def send(accounts, message, title, sender_phone = nil, options = nil)
         # Validate inputs
         raise ArgumentError, 'At least one account is required' if accounts.nil? || accounts.empty?
         raise ArgumentError, 'Message is required' if message.nil? || message.empty?
@@ -47,6 +48,7 @@ module CCAI
           message: message,
           title: title
         }
+        campaign_data[:senderPhone] = sender_phone if sender_phone
 
         begin
           # Notify progress if callback provided
@@ -75,17 +77,21 @@ module CCAI
       # @param phone [String] Recipient's phone number (E.164 format)
       # @param message [String] Message content (can include ${firstName} and ${lastName} variables)
       # @param title [String] Campaign title
+      # @param custom_data [String, nil] Optional custom data forwarded to webhook (sent as messageData)
+      # @param sender_phone [String, nil] Optional sender phone number override
       # @param options [CCAI::SMS::Options, nil] Optional settings for the SMS send operation
       # @return [CCAI::SMS::Response] API response
-      def send_single(first_name, last_name, phone, message, title, options = nil)
+      def send_single(first_name, last_name, phone, message, title, custom_data = nil, sender_phone = nil, options = nil)
         account = Account.new(
           first_name: first_name,
           last_name: last_name,
-          phone: phone
+          phone: phone,
+          custom_data: custom_data
         )
 
-        send([account], message, title, options)
+        send([account], message, title, sender_phone, options)
       end
+
     end
   end
 end

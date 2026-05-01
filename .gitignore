@@ -37,3 +37,5 @@ Thumbs.db
 
 # Ignore image files that might contain sensitive data
 imageRUBY.jpg
+# Real API tests — local only
+test_real.rb
