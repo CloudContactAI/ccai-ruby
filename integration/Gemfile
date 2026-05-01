@@ -1,0 +1,11 @@
+# frozen_string_literal: true
+
+source 'https://rubygems.org'
+
+# Load the CCAI SDK from the cloned repo
+gem 'ccai', path: '..'
+
+# Dependencies required by the SDK
+gem 'faraday', '~> 2.0'
+gem 'faraday-multipart', '~> 1.0'
+gem 'json', '~> 2.0'
