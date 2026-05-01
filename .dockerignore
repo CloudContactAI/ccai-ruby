@@ -1,0 +1,11 @@
+.git
+.github
+*.md
+LICENSE
+examples/
+test/
+pkg/
+.bundle/
+.env
+.env.*
+*.jpg
