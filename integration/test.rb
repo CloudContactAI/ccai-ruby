@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
-# Ruby SDK integration tests -- 31 tests
-# Covers: SMS (1-6), MMS (7-17), Email (18-22), Webhook (23-29), Contact (30-31)
+# Ruby SDK integration tests -- 42 tests
+# Covers: SMS (1-6), MMS (7-17), Email (18-22), Webhook (23-29), Contact (30-31),
+#         Brands (32-36), Campaigns (37-42)
 
 require 'ccai'
 require 'openssl'
@@ -375,6 +376,147 @@ result = run_test('31 Contact.set_do_not_text(false)') do
   client.contact.set_do_not_text(false, phone: phone1)
 end
 passed += result ? 1 : 0; failed += result ? 0 : 1
+
+# ── Brands Tests (32-36) ──────────────────────────────────────────────────────
+puts "\n--- Brands ---"
+
+created_brand_id = nil
+
+BRAND_PAYLOAD = {
+  legalCompanyName: 'Ruby SDK Test Brand LLC',
+  dba:              'Ruby SDK Test Brand',
+  entityType:       'PRIVATE_PROFIT',
+  taxId:            '123456789',
+  taxIdCountry:     'US',
+  country:          'US',
+  verticalType:     'TECHNOLOGY',
+  websiteUrl:       'https://rubysdk.example.com',
+  street:           '123 Test St',
+  city:             'Miami',
+  state:            'FL',
+  postalCode:       '33101',
+  contactFirstName: 'Test',
+  contactLastName:  'User',
+  contactEmail:     email1,
+  contactPhone:     phone1,
+}.freeze
+
+# 32 -- Brand.create
+result = run_test('32 Brand.create') do
+  resp = client.brand.create(BRAND_PAYLOAD)
+  id = resp['id'] || resp[:id]
+  raise 'brand ID is empty after create' if id.nil? || id.to_s.empty?
+  created_brand_id = id.to_s
+end
+passed += result ? 1 : 0; failed += result ? 0 : 1
+
+# 33 -- Brand.get
+result = run_test('33 Brand.get') do
+  raise 'no brand ID from test 32' if created_brand_id.nil?
+  resp = client.brand.get(created_brand_id)
+  raise 'expected brand response to be a Hash' unless resp.is_a?(Hash)
+end
+passed += result ? 1 : 0; failed += result ? 0 : 1
+
+# 34 -- Brand.list
+result = run_test('34 Brand.list') do
+  resp = client.brand.list
+  raise 'expected list response to be a Hash or Array' unless resp.is_a?(Hash) || resp.is_a?(Array)
+end
+passed += result ? 1 : 0; failed += result ? 0 : 1
+
+# 35 -- Brand.update
+result = run_test('35 Brand.update') do
+  raise 'no brand ID from test 32' if created_brand_id.nil?
+  client.brand.update(created_brand_id, { city: 'Fort Lauderdale' })
+end
+passed += result ? 1 : 0; failed += result ? 0 : 1
+
+# 36 -- Brand.delete
+result = run_test('36 Brand.delete') do
+  raise 'no brand ID from test 32' if created_brand_id.nil?
+  client.brand.delete(created_brand_id)
+end
+passed += result ? 1 : 0; failed += result ? 0 : 1
+
+# ── Campaigns Tests (37-42) ───────────────────────────────────────────────────
+puts "\n--- Campaigns ---"
+
+campaign_brand_id = nil
+created_campaign_id = nil
+
+# 37 -- Campaign setup: create a brand to use
+result = run_test('37 Campaign setup — Brand.create') do
+  resp = client.brand.create(BRAND_PAYLOAD)
+  id = resp['id'] || resp[:id]
+  raise 'brand ID is empty for campaign setup' if id.nil? || id.to_s.empty?
+  campaign_brand_id = id.to_s
+end
+passed += result ? 1 : 0; failed += result ? 0 : 1
+
+CAMPAIGN_PAYLOAD_TEMPLATE = {
+  useCase:          'MARKETING',
+  description:      'Ruby SDK test campaign for integration testing',
+  messageFlow:      'Users opt-in via our website form.',
+  hasEmbeddedLinks: false,
+  hasEmbeddedPhone: false,
+  isAgeGated:       false,
+  isDirectLending:  false,
+  optInKeywords:    %w[START YES],
+  optInMessage:     'You are now subscribed. Reply STOP to unsubscribe.',
+  optInProofUrl:    'https://rubysdk.example.com/optin',
+  helpKeywords:     %w[HELP INFO],
+  helpMessage:      'For help, contact support@example.com. Reply HELP for assistance.',
+  optOutKeywords:   %w[STOP CANCEL],
+  optOutMessage:    'You have been unsubscribed. Reply STOP to opt out.',
+  sampleMessages:   [
+    'Hello! Reply STOP to opt out.',
+    'Hi there! Reply HELP for assistance.'
+  ],
+}.freeze
+
+# 38 -- Campaign.create
+result = run_test('38 Campaign.create') do
+  raise 'no brand ID from test 37' if campaign_brand_id.nil?
+  payload = CAMPAIGN_PAYLOAD_TEMPLATE.merge(brandId: campaign_brand_id)
+  resp = client.campaign.create(payload)
+  id = resp['id'] || resp[:id]
+  raise 'campaign ID is empty after create' if id.nil? || id.to_s.empty?
+  created_campaign_id = id.to_s
+end
+passed += result ? 1 : 0; failed += result ? 0 : 1
+
+# 39 -- Campaign.get
+result = run_test('39 Campaign.get') do
+  raise 'no campaign ID from test 38' if created_campaign_id.nil?
+  resp = client.campaign.get(created_campaign_id)
+  raise 'expected campaign response to be a Hash' unless resp.is_a?(Hash)
+end
+passed += result ? 1 : 0; failed += result ? 0 : 1
+
+# 40 -- Campaign.list
+result = run_test('40 Campaign.list') do
+  resp = client.campaign.list
+  raise 'expected list response to be a Hash or Array' unless resp.is_a?(Hash) || resp.is_a?(Array)
+end
+passed += result ? 1 : 0; failed += result ? 0 : 1
+
+# 41 -- Campaign.update
+result = run_test('41 Campaign.update') do
+  raise 'no campaign ID from test 38' if created_campaign_id.nil?
+  client.campaign.update(created_campaign_id, { description: 'Updated Ruby SDK campaign' })
+end
+passed += result ? 1 : 0; failed += result ? 0 : 1
+
+# 42 -- Campaign.delete
+result = run_test('42 Campaign.delete') do
+  raise 'no campaign ID from test 38' if created_campaign_id.nil?
+  client.campaign.delete(created_campaign_id)
+end
+passed += result ? 1 : 0; failed += result ? 0 : 1
+
+# cleanup campaign brand
+client.brand.delete(campaign_brand_id) if campaign_brand_id
 
 # ── Cleanup & Results ─────────────────────────────────────────────────────────
 png_path.close!  # cleanup Tempfile
