@@ -11,6 +11,8 @@ require 'ccai/sms/mms_service'
 require 'ccai/email/email_service'
 require 'ccai/webhook/webhook_service'
 require 'ccai/contact/contact_service'
+require 'ccai/brand/brand_service'
+require 'ccai/campaign/campaign_service'
 
 # Main module for the CCAI Ruby client
 module CCAI
