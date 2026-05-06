@@ -10,21 +10,25 @@ require 'ccai/sms/mms_service'
 require 'ccai/email/email_service'
 require 'ccai/webhook/webhook_service'
 require 'ccai/contact/contact_service'
+require 'ccai/brand/brand_service'
+require 'ccai/campaign/campaign_service'
 
 module CCAI
   # Configuration for the CCAI client
   class Config
-    attr_reader :client_id, :api_key, :base_url, :email_base_url, :files_base_url, :use_test_environment
+    attr_reader :client_id, :api_key, :base_url, :email_base_url, :files_base_url, :compliance_base_url, :use_test_environment
 
     # Production URLs
-    PROD_BASE_URL  = 'https://core.cloudcontactai.com/api'
-    PROD_EMAIL_URL = 'https://email-campaigns.cloudcontactai.com/api/v1'
-    PROD_FILES_URL = 'https://files.cloudcontactai.com'
+    PROD_BASE_URL        = 'https://core.cloudcontactai.com/api'
+    PROD_EMAIL_URL       = 'https://email-campaigns.cloudcontactai.com/api/v1'
+    PROD_FILES_URL       = 'https://files.cloudcontactai.com'
+    PROD_COMPLIANCE_URL  = 'https://compliance.cloudcontactai.com/api'
 
     # Test environment URLs
-    TEST_BASE_URL  = 'https://core-test-cloudcontactai.allcode.com/api'
-    TEST_EMAIL_URL = 'https://email-campaigns-test-cloudcontactai.allcode.com/api/v1'
-    TEST_FILES_URL = 'https://files-test-cloudcontactai.allcode.com'
+    TEST_BASE_URL        = 'https://core-test-cloudcontactai.allcode.com/api'
+    TEST_EMAIL_URL       = 'https://email-campaigns-test-cloudcontactai.allcode.com/api/v1'
+    TEST_FILES_URL       = 'https://files-test-cloudcontactai.allcode.com'
+    TEST_COMPLIANCE_URL  = 'https://compliance-test-cloudcontactai.allcode.com/api'
 
     # Create a new configuration
     #
@@ -34,7 +38,8 @@ module CCAI
     # @param base_url [String, nil] Override base URL for the core API
     # @param email_base_url [String, nil] Override base URL for the Email API
     # @param files_base_url [String, nil] Override base URL for the Files API
-    def initialize(client_id:, api_key:, use_test_environment: false, base_url: nil, email_base_url: nil, files_base_url: nil)
+    # @param compliance_base_url [String, nil] Override base URL for the Compliance API
+    def initialize(client_id:, api_key:, use_test_environment: false, base_url: nil, email_base_url: nil, files_base_url: nil, compliance_base_url: nil)
       @client_id = client_id
       @api_key = api_key
       @use_test_environment = use_test_environment
@@ -51,12 +56,16 @@ module CCAI
       @files_base_url = files_base_url ||
                         ENV.fetch('CCAI_FILES_BASE_URL', nil) ||
                         (use_test_environment ? TEST_FILES_URL : PROD_FILES_URL)
+
+      @compliance_base_url = compliance_base_url ||
+                             ENV.fetch('CCAI_COMPLIANCE_BASE_URL', nil) ||
+                             (use_test_environment ? TEST_COMPLIANCE_URL : PROD_COMPLIANCE_URL)
     end
   end
 
   # Main client for interacting with the CloudContactAI API
   class Client
-    attr_reader :config, :sms, :mms, :email, :webhook, :contact
+    attr_reader :config, :sms, :mms, :email, :webhook, :contact, :brand, :campaign
 
     # Create a new CCAI client instance
     #
@@ -88,6 +97,12 @@ module CCAI
 
       # Initialize the Contact service
       @contact = Contact::ContactService.new(self)
+
+      # Initialize the Brand service
+      @brand = Brand::BrandService.new(self)
+
+      # Initialize the Campaign service
+      @campaign = Campaign::CampaignService.new(self)
     end
 
     # Get the client ID
@@ -125,6 +140,13 @@ module CCAI
       @config.files_base_url
     end
 
+    # Get the base URL for the Compliance API
+    #
+    # @return [String] Compliance base URL
+    def compliance_base_url
+      @config.compliance_base_url
+    end
+
     # Whether the test environment is active
     #
     # @return [Boolean]
@@ -148,6 +170,29 @@ module CCAI
 
         if response.success?
           response.body.empty? ? {} : JSON.parse(response.body)
+        else
+          raise Error.new("API Error: #{response.status} - #{response.body}")
+        end
+      rescue Faraday::Error => e
+        raise Error.new("Request failed: #{e.message}")
+      end
+    end
+
+    # Make an authenticated API request to the Compliance API
+    #
+    # @param method [Symbol] HTTP method (:get, :post, etc.)
+    # @param endpoint [String] API endpoint
+    # @param data [Hash, nil] Request data
+    # @return [Hash] API response
+    # @raise [CCAI::Error] If the API returns an error
+    def compliance_request(method, endpoint, data = nil)
+      url = "#{@config.compliance_base_url}#{endpoint}"
+
+      begin
+        response = @connection.run_request(method, url, data ? data.to_json : nil, nil)
+
+        if response.success?
+          response.body.nil? || response.body.empty? ? {} : JSON.parse(response.body)
         else
           raise Error.new("API Error: #{response.status} - #{response.body}")
         end
