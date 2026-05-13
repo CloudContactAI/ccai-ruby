@@ -1,0 +1,79 @@
+name: Release Ruby SDK
+
+on:
+  push:
+    tags:
+      - "release/v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ruby-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish to RubyGems
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Build gem
+        run: |
+          set -euo pipefail
+
+          rm -f *.gem
+
+          GEMSPEC_FILE=$(ls -1 *.gemspec 2>/dev/null | head -n 1)
+
+          if [ -z "$GEMSPEC_FILE" ]; then
+            echo "Error: No gemspec found"
+            exit 1
+          fi
+
+          echo "Building gem from: $GEMSPEC_FILE"
+          gem build "$GEMSPEC_FILE"
+
+      - name: Validate gem package
+        run: |
+          set -euo pipefail
+
+          GEM_FILE=$(ls -1 *.gem 2>/dev/null | head -n 1)
+
+          if [ -z "$GEM_FILE" ]; then
+            echo "Error: No gem file generated after build"
+            ls -la
+            exit 1
+          fi
+
+          echo "Gem built successfully: $GEM_FILE"
+          ls -lh "$GEM_FILE"
+
+      - name: Publish to RubyGems
+        env:
+          GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          GEM_FILE=$(ls -1 *.gem | head -n 1)
+
+          if [ -z "${GEM_HOST_API_KEY:-}" ]; then
+            echo "Error: RUBYGEMS_API_KEY secret not configured"
+            exit 1
+          fi
+
+          echo "Publishing gem: $GEM_FILE"
+          gem push "$GEM_FILE"
+
+          echo "Successfully published to RubyGems"
