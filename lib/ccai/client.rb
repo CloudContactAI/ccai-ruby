@@ -12,6 +12,7 @@ require 'ccai/webhook/webhook_service'
 require 'ccai/contact/contact_service'
 require 'ccai/brand/brand_service'
 require 'ccai/campaign/campaign_service'
+require 'ccai/contact_validator/contact_validator_service'
 
 module CCAI
   # Configuration for the CCAI client
@@ -65,7 +66,7 @@ module CCAI
 
   # Main client for interacting with the CloudContactAI API
   class Client
-    attr_reader :config, :sms, :mms, :email, :webhook, :contact, :brand, :campaign
+    attr_reader :config, :sms, :mms, :email, :webhook, :contact, :brand, :campaign, :contact_validator
 
     # Create a new CCAI client instance
     #
@@ -103,6 +104,9 @@ module CCAI
 
       # Initialize the Campaign service
       @campaign = Campaign::CampaignService.new(self)
+
+      # Initialize the ContactValidator service
+      @contact_validator = ContactValidator::ContactValidatorService.new(self)
     end
 
     # Get the client ID
