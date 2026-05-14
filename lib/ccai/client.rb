@@ -173,7 +173,7 @@ module CCAI
         response = @connection.run_request(method, url, data ? data.to_json : nil, headers)
 
         if response.success?
-          response.body.empty? ? {} : JSON.parse(response.body)
+          response.body.empty? ? {} : JSON.parse(response.body, symbolize_names: true)
         else
           raise Error.new("API Error: #{response.status} - #{response.body}")
         end
@@ -196,7 +196,7 @@ module CCAI
         response = @connection.run_request(method, url, data ? data.to_json : nil, nil)
 
         if response.success?
-          response.body.nil? || response.body.empty? ? {} : JSON.parse(response.body)
+          response.body.nil? || response.body.empty? ? {} : JSON.parse(response.body, symbolize_names: true)
         else
           raise Error.new("API Error: #{response.status} - #{response.body}")
         end
