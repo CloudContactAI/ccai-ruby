@@ -236,7 +236,8 @@ module CCAI
         options.notify_progress('Checking if image already uploaded')
         stored_url_response = check_file_uploaded(file_key)
 
-        if stored_url_response && !stored_url_response['storedUrl'].to_s.empty?
+        stored_url = stored_url_response && (stored_url_response[:storedUrl] || stored_url_response['storedUrl'])
+        if !stored_url.to_s.empty?
           # Image already uploaded, skip upload and send directly
           options.notify_progress('Image already exists in S3, sending MMS')
           return send(file_key, accounts, message, title, sender_phone, options, force_new_campaign)
