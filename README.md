@@ -138,6 +138,42 @@ client.contact.set_do_not_text(false, phone: '+15551234567')
 client.contact.set_do_not_text(true, contact_id: 'contact-abc-123')
 ```
 
+### Contact Validator
+
+Validate email addresses and phone numbers.
+
+> Bulk endpoints accept up to 50 contacts per request and are processed server-side in chunks.
+
+```ruby
+require 'ccai'
+
+# Initialize the client
+client = CCAI.new(
+  client_id: 'YOUR-CLIENT-ID',
+  api_key: 'YOUR-API-KEY'
+)
+
+# Validate a single email
+email_result = client.contact_validator.validate_email('user@example.com')
+puts "Status: #{email_result['status']}" # "valid" | "invalid" | "risky"
+
+# Validate multiple emails (up to 50, processed server-side in chunks)
+bulk_emails = client.contact_validator.validate_emails(['user@example.com', 'bad@invalid.xyz'])
+puts "Total: #{bulk_emails['summary']['total']}" # 2
+puts "Valid: #{bulk_emails['summary']['valid']}"  # 1
+
+# Validate a single phone number
+phone_result = client.contact_validator.validate_phone('+15551234567', country_code: 'US')
+puts "Status: #{phone_result['status']}" # "valid" | "invalid" | "landline"
+
+# Validate multiple phone numbers (up to 50, processed server-side in chunks)
+bulk_phones = client.contact_validator.validate_phones([
+  { phone: '+15551234567' },
+  { phone: '+15559876543', countryCode: 'US' }
+])
+puts "Landline: #{bulk_phones['summary']['landline']}" # 1
+```
+
 ### Webhooks
 
 ```ruby
@@ -356,6 +392,7 @@ ccai --type email --client-id YOUR-CLIENT-ID --api-key YOUR-API-KEY \
 - Send MMS messages with images (automatic S3 upload)
 - Send email campaigns with HTML content
 - Manage contact opt-out preferences (set_do_not_text)
+- Validate email addresses (valid/invalid/risky) and phone numbers (valid/invalid/landline)
 - Manage webhooks: register, list, update, delete
 - Webhook signature verification (HMAC-SHA256 with Base64 encoding)
 - Template variable substitution (`${firstName}`, `${lastName}`)
