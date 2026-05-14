@@ -49,16 +49,18 @@ module CCAI
 
       # Create a new Response instance
       #
-      # @param data [Hash] Response data from the API
+      # @param data [Hash] Response data from the API. Client#request parses JSON
+      #   with symbolize_names: true, so keys may be Symbols or Strings depending
+      #   on the caller — accept both.
       def initialize(data)
         @data = data
-        @id = data['id']
-        @status = data['status']
-        @campaign_id = data['campaignId']
-        @messages_sent = data['messagesSent']
-        @timestamp = data['timestamp']
-        @message = data['message']
-        @response_id = data['responseId']
+        @id = data[:id] || data['id']
+        @status = data[:status] || data['status']
+        @campaign_id = data[:campaignId] || data['campaignId']
+        @messages_sent = data[:messagesSent] || data['messagesSent']
+        @timestamp = data[:timestamp] || data['timestamp']
+        @message = data[:message] || data['message']
+        @response_id = data[:responseId] || data['responseId']
       end
 
       # Get a value from the response data
@@ -76,11 +78,11 @@ module CCAI
 
       # Create a new SignedUrlResponse instance
       #
-      # @param data [Hash] Response data from the API
+      # @param data [Hash] Response data from the API (Symbol or String keys)
       def initialize(data)
         @data = data
-        @signed_s3_url = data['signedS3Url']
-        @file_key = data['fileKey']
+        @signed_s3_url = data[:signedS3Url] || data['signedS3Url']
+        @file_key = data[:fileKey] || data['fileKey']
       end
 
       # Get a value from the response data

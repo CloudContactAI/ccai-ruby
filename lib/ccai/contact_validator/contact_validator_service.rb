@@ -17,7 +17,7 @@ module CCAI
       # Validate a single email address
       #
       # @param email [String] Email address to validate
-      # @return [Hash] Validation result with contact, type, status and metadata
+      # @return [Hash] Validation result with contactField, type, status and metadata
       def validate_email(email)
         @client.request(:post, '/v1/contact-validator/email', { email: email })
       end
@@ -34,7 +34,7 @@ module CCAI
       #
       # @param phone [String] Phone number in E.164 format (e.g. +15551234567)
       # @param country_code [String, nil] Optional ISO 3166-1 alpha-2 country code (e.g. "US")
-      # @return [Hash] Validation result with contact, type, status and metadata
+      # @return [Hash] Validation result with contactField, type, status and metadata
       def validate_phone(phone, country_code: nil)
         payload = { phone: phone }
         payload[:countryCode] = country_code if country_code
