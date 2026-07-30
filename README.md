@@ -1,6 +1,6 @@
 # CCAI Ruby Client
 
-A Ruby client for interacting with the Cloud Contact AI API that allows you to easily send SMS, MMS messages, and email campaigns, plus manage webhooks.
+A Ruby client for interacting with the Cloud Contact AI API that allows you to easily send SMS, MMS messages, and email campaigns, manage webhooks, register brands for TCR verification, and register campaigns for TCR carrier vetting.
 
 ## Requirements
 
@@ -173,6 +173,125 @@ bulk_phones = client.contact_validator.validate_phones([
 ])
 puts "Landline: #{bulk_phones['summary']['landline']}" # 1
 ```
+
+### Brand Registration
+
+Register and manage brands for TCR verification.
+
+```ruby
+require 'ccai'
+
+# Initialize the client
+client = CCAI.new(
+  client_id: 'YOUR-CLIENT-ID',
+  api_key: 'YOUR-API-KEY'
+)
+
+# Create a brand
+brand = client.brands.create(
+  legal_company_name: 'Collect.org Inc.',
+  dba: 'Collect',
+  entity_type: 'NON_PROFIT',
+  tax_id: '123456789',
+  tax_id_country: 'US',
+  country: 'US',
+  vertical_type: 'NON_PROFIT',
+  website_url: 'https://www.collect.org',
+  street: '123 Main Street',
+  city: 'San Francisco',
+  state: 'CA',
+  postal_code: '94105',
+  contact_first_name: 'Jane',
+  contact_last_name: 'Doe',
+  contact_email: 'jane@collect.org',
+  contact_phone: '+14155551234'
+)
+puts "Brand created with ID: #{brand['id']}"
+
+# Get a brand by ID
+fetched = client.brands.get(brand['id'])
+puts "Website match score: #{fetched['websiteMatchScore'] || 'pending'}"
+
+# List all brands
+brands = client.brands.list
+puts "Found #{brands.length} brand(s)"
+
+# Update a brand (partial update)
+client.brands.update(brand['id'],
+  street: '456 Oak Avenue',
+  city: 'Los Angeles'
+)
+
+# Delete a brand
+client.brands.delete(brand['id'])
+```
+
+**Entity Types:** `PRIVATE_PROFIT`, `PUBLIC_PROFIT`, `NON_PROFIT`, `GOVERNMENT`, `SOLE_PROPRIETOR`
+
+> Note: `PUBLIC_PROFIT` entities require `stock_symbol` and `stock_exchange` fields.
+
+**Vertical Types:** `AUTOMOTIVE`, `AGRICULTURE`, `BANKING`, `COMMUNICATION`, `CONSTRUCTION`, `EDUCATION`, `ENERGY`, `ENTERTAINMENT`, `GOVERNMENT`, `HEALTHCARE`, `HOSPITALITY`, `INSURANCE`, `LEGAL`, `MANUFACTURING`, `NON_PROFIT`, `PROFESSIONAL`, `REAL_ESTATE`, `RETAIL`, `TECHNOLOGY`, `TRANSPORTATION`
+
+### Campaign Registration
+
+Register and manage campaigns for TCR carrier vetting.
+
+```ruby
+require 'ccai'
+
+# Initialize the client
+client = CCAI.new(
+  client_id: 'YOUR-CLIENT-ID',
+  api_key: 'YOUR-API-KEY'
+)
+
+# Create a campaign
+campaign = client.campaigns.create(
+  brand_id: 1,
+  use_case: 'MIXED',
+  sub_use_cases: ['CUSTOMER_CARE', 'TWO_FACTOR_AUTHENTICATION', 'ACCOUNT_NOTIFICATION'],
+  description: 'Security codes and support messaging.',
+  message_flow: 'Users opt-in via signup form at https://example.com/signup',
+  has_embedded_links: true,
+  has_embedded_phone: false,
+  is_age_gated: false,
+  is_direct_lending: false,
+  opt_in_keywords: ['START'],
+  opt_in_message: 'Welcome! Reply STOP to cancel.',
+  opt_in_proof_url: 'https://example.com/opt-in-proof.png',
+  help_keywords: ['HELP'],
+  help_message: 'For HELP email support@example.com.',
+  opt_out_keywords: ['STOP'],
+  opt_out_message: 'STOP received. You are unsubscribed.',
+  sample_messages: [
+    'Your code is 554321. Reply STOP to cancel.',
+    'Your ticket has been updated. Reply HELP for info.'
+  ]
+)
+puts "Campaign created with ID: #{campaign['id']}"
+
+# Get a campaign by ID
+fetched = client.campaigns.get(campaign['id'])
+puts "Campaign use case: #{fetched['useCase']}"
+
+# List all campaigns
+campaigns = client.campaigns.list
+puts "Found #{campaigns.length} campaign(s)"
+
+# Update a campaign (partial update)
+client.campaigns.update(campaign['id'],
+  description: 'Updated description.'
+)
+
+# Delete a campaign
+client.campaigns.delete(campaign['id'])
+```
+
+**Use Cases:** `TWO_FACTOR_AUTHENTICATION`, `ACCOUNT_NOTIFICATION`, `CUSTOMER_CARE`, `DELIVERY_NOTIFICATION`, `FRAUD_ALERT`, `HIGHER_EDUCATION`, `LOW_VOLUME_MIXED`, `MARKETING`, `MIXED`, `POLLING_VOTING`, `PUBLIC_SERVICE_ANNOUNCEMENT`, `SECURITY_ALERT`
+
+> Note: `MIXED` and `LOW_VOLUME_MIXED` campaigns require 2–3 `sub_use_cases`.
+
+**Sub-Use Cases:** `TWO_FACTOR_AUTHENTICATION`, `ACCOUNT_NOTIFICATION`, `CUSTOMER_CARE`, `DELIVERY_NOTIFICATION`, `FRAUD_ALERT`, `MARKETING`, `POLLING_VOTING`
 
 ### Webhooks
 
@@ -393,6 +512,8 @@ ccai --type email --client-id YOUR-CLIENT-ID --api-key YOUR-API-KEY \
 - Send email campaigns with HTML content
 - Manage contact opt-out preferences (set_do_not_text)
 - Validate email addresses (valid/invalid/risky) and phone numbers (valid/invalid/landline)
+- Brand registration and management for TCR verification
+- Campaign registration and management for TCR carrier vetting
 - Manage webhooks: register, list, update, delete
 - Webhook signature verification (HMAC-SHA256 with Base64 encoding)
 - Template variable substitution (`${firstName}`, `${lastName}`)
