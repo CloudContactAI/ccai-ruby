@@ -28,26 +28,28 @@ class Webhooks::CcaiController < ApplicationController
     
     # Verify the signature (optional but recommended)
     signature = request.headers['X-CCAI-Signature']
+    client_id = Rails.application.credentials.ccai_client_id
+    event_hash = payload['eventHash']
     webhook_secret = Rails.application.credentials.ccai_webhook_secret
-    
+
     if signature && webhook_secret
-      unless @ccai_client.webhook.verify_signature(signature, payload_body, webhook_secret)
+      unless @ccai_client.webhook.verify_signature(signature, client_id, event_hash, webhook_secret)
         Rails.logger.warn "Invalid webhook signature from #{request.remote_ip}"
         render json: { error: 'Invalid signature' }, status: :unauthorized
         return
       end
     end
-    
-    # Process the webhook based on its type
-    case payload['type']
-    when CCAI::Webhook::EventType::MESSAGE_SENT
-      handle_message_sent(payload)
-      
-    when CCAI::Webhook::EventType::MESSAGE_RECEIVED
-      handle_message_received(payload)
-      
+
+    # Process the webhook based on its event type
+    case payload['eventType']
+    when 'message.sent'
+      handle_message_sent(payload['data'])
+
+    when 'message.incoming'
+      handle_message_received(payload['data'])
+
     else
-      Rails.logger.warn "Unknown webhook type: #{payload['type']}"
+      Rails.logger.warn "Unhandled event type: #{payload['eventType']}"
     end
     
     # Always respond with 200 to acknowledge receipt
@@ -63,64 +65,61 @@ class Webhooks::CcaiController < ApplicationController
     )
   end
   
-  # Handle outbound message events
-  def handle_message_sent(payload)
+  # Handle outbound message events (data is the webhook event's "data" object)
+  def handle_message_sent(data)
     Rails.logger.info "=== Message Sent Event ==="
-    Rails.logger.info "Campaign: #{payload['campaign']['title']} (ID: #{payload['campaign']['id']})"
-    Rails.logger.info "From: #{payload['from']}"
-    Rails.logger.info "To: #{payload['to']}"
-    Rails.logger.info "Message: #{payload['message']}"
-    Rails.logger.info "Sent at: #{payload['campaign']['runAt']}"
-    
+    Rails.logger.info "Campaign: #{data['CampaignTitle']} (ID: #{data['CampaignId']})"
+    Rails.logger.info "To: #{data['To']}"
+    Rails.logger.info "Message: #{data['Message']}"
+
     # Add your custom logic here
     # For example:
-    
+
     # Update message status in database
-    # Message.find_by(campaign_id: payload['campaign']['id'])&.update(status: 'sent')
-    
+    # Message.find_by(campaign_id: data['CampaignId'])&.update(status: 'sent')
+
     # Track analytics
     # Analytics.track('message_sent', {
-    #   campaign_id: payload['campaign']['id'],
-    #   recipient: payload['to'],
-    #   timestamp: payload['campaign']['runAt']
+    #   campaign_id: data['CampaignId'],
+    #   recipient: data['To']
     # })
-    
+
     # Send notification to team
-    # NotificationMailer.message_sent(payload).deliver_later
+    # NotificationMailer.message_sent(data).deliver_later
   end
-  
-  # Handle inbound message events
-  def handle_message_received(payload)
+
+  # Handle inbound message events (data is the webhook event's "data" object)
+  def handle_message_received(data)
     Rails.logger.info "=== Message Received Event ==="
-    Rails.logger.info "Campaign: #{payload['campaign']['title']} (ID: #{payload['campaign']['id']})"
-    Rails.logger.info "From: #{payload['from']}"
-    Rails.logger.info "To: #{payload['to']}"
-    Rails.logger.info "Message: #{payload['message']}"
-    
+    Rails.logger.info "Campaign: #{data['CampaignTitle']} (ID: #{data['CampaignId']})"
+    Rails.logger.info "From: #{data['From']}"
+    Rails.logger.info "Message: #{data['Message']}"
+
     # Add your custom logic here
     # For example:
-    
+
     # Store the reply in database
     # InboundMessage.create!(
-    #   campaign_id: payload['campaign']['id'],
-    #   from_number: payload['from'],
-    #   to_number: payload['to'],
-    #   message: payload['message'],
+    #   campaign_id: data['CampaignId'],
+    #   from_number: data['From'],
+    #   message: data['Message'],
     #   received_at: Time.current
-    # )\n    
+    # )
+
     # Process special commands
-    message = payload['message'].downcase\n    if message.include?('stop') || message.include?('unsubscribe')
-      Rails.logger.info "Processing unsubscribe request from #{payload['from']}"
-      # Contact.find_by(phone: payload['from'])&.update(subscribed: false)
-      # UnsubscribeJob.perform_later(payload['from'])
-      
+    message = data['Message'].to_s.downcase
+    if message.include?('stop') || message.include?('unsubscribe')
+      Rails.logger.info "Processing unsubscribe request from #{data['From']}"
+      # Contact.find_by(phone: data['From'])&.update(subscribed: false)
+      # UnsubscribeJob.perform_later(data['From'])
+
     elsif message.include?('help')
-      Rails.logger.info "Sending help information to #{payload['from']}"
-      # HelpResponseJob.perform_later(payload['from'])
-      
+      Rails.logger.info "Sending help information to #{data['From']}"
+      # HelpResponseJob.perform_later(data['From'])
+
     else
       # Forward to customer service or trigger auto-response
-      # CustomerServiceJob.perform_later(payload)
+      # CustomerServiceJob.perform_later(data)
     end
   end
 end
