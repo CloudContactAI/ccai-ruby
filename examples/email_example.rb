@@ -9,8 +9,8 @@ require 'ccai'
 
 # Initialize the client
 client = CCAI.new(
-  client_id: '2682',
-  api_key: 'eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJpbmZvQGFsbGNvZGUuY29tIiwiaXNzIjoiY2xvdWRjb250YWN0IiwibmJmIjoxNzE5NDQwMjM2LCJpYXQiOjE3MTk0NDAyMzYsInJvbGUiOiJVU0VSIiwiY2xpZW50SWQiOjI2ODIsImlkIjoyNzY0LCJ0eXBlIjoiQVBJX0tFWSIsImtleV9yYW5kb21faWQiOiI1MGRiOTUzZC1hMjUxLTRmZjMtODI5Yi01NjIyOGRhOGE1YTAifQ.PKVjXYHdjBMum9cTgLzFeY2KIb9b2tjawJ0WXalsb8Bckw1RuxeiYKS1bw5Cc36_Rfmivze0T7r-Zy0PVj2omDLq65io0zkBzIEJRNGDn3gx_AqmBrJ3yGnz9s0WTMr2-F1TFPUByzbj1eSOASIKeI7DGufTA5LDrRclVkz32Oo'
+  client_id: ENV['CCAI_CLIENT_ID'] || 'YOUR_CLIENT_ID',
+  api_key: ENV['CCAI_API_KEY'] || 'YOUR_API_KEY'
 )
 
 # Example 1: Send a single email
@@ -24,6 +24,7 @@ def send_single_email(client)
       'andreas@allcode.com',
       'Welcome to Our Service',
       '<p>Hello Andreas,</p><p>Thank you for signing up for our service!</p><p>Best regards,<br>AllCode Team</p>',
+      nil,                                # text_content
       'noreply@allcode.com',
       'support@allcode.com',
       'AllCode',
@@ -133,6 +134,7 @@ def send_html_template_email(client)
       'john@example.com',
       'Welcome to Our Platform',
       html_template,
+      nil,                                # text_content
       'welcome@yourcompany.com',
       'support@yourcompany.com',
       'Your Company',

@@ -109,6 +109,7 @@ response = client.email.send_single(
   'john@example.com',
   'Welcome to Our Service',
   '<p>Hello John,</p><p>Thank you for signing up!</p>',
+  nil,                                # text_content
   'noreply@yourcompany.com',
   'support@yourcompany.com',
   'Your Company',
@@ -214,47 +215,47 @@ client = CCAI.new(
 )
 
 # Create a brand
-brand = client.brands.create(
-  legal_company_name: 'Collect.org Inc.',
+brand = client.brand.create(
+  legalCompanyName: 'Collect.org Inc.',
   dba: 'Collect',
-  entity_type: 'NON_PROFIT',
-  tax_id: '123456789',
-  tax_id_country: 'US',
+  entityType: 'NON_PROFIT',
+  taxId: '123456789',
+  taxIdCountry: 'US',
   country: 'US',
-  vertical_type: 'NON_PROFIT',
-  website_url: 'https://www.collect.org',
+  verticalType: 'NON_PROFIT',
+  websiteUrl: 'https://www.collect.org',
   street: '123 Main Street',
   city: 'San Francisco',
   state: 'CA',
-  postal_code: '94105',
-  contact_first_name: 'Jane',
-  contact_last_name: 'Doe',
-  contact_email: 'jane@collect.org',
-  contact_phone: '+14155551234'
+  postalCode: '94105',
+  contactFirstName: 'Jane',
+  contactLastName: 'Doe',
+  contactEmail: 'jane@collect.org',
+  contactPhone: '+14155551234'
 )
 puts "Brand created with ID: #{brand['id']}"
 
 # Get a brand by ID
-fetched = client.brands.get(brand['id'])
+fetched = client.brand.get(brand['id'])
 puts "Website match score: #{fetched['websiteMatchScore'] || 'pending'}"
 
 # List all brands
-brands = client.brands.list
+brands = client.brand.list
 puts "Found #{brands.length} brand(s)"
 
 # Update a brand (partial update)
-client.brands.update(brand['id'],
+client.brand.update(brand['id'],
   street: '456 Oak Avenue',
   city: 'Los Angeles'
 )
 
 # Delete a brand
-client.brands.delete(brand['id'])
+client.brand.delete(brand['id'])
 ```
 
 **Entity Types:** `PRIVATE_PROFIT`, `PUBLIC_PROFIT`, `NON_PROFIT`, `GOVERNMENT`, `SOLE_PROPRIETOR`
 
-> Note: `PUBLIC_PROFIT` entities require `stock_symbol` and `stock_exchange` fields.
+> Note: `PUBLIC_PROFIT` entities require `stockSymbol` and `stockExchange` fields.
 
 **Vertical Types:** `AUTOMOTIVE`, `AGRICULTURE`, `BANKING`, `COMMUNICATION`, `CONSTRUCTION`, `EDUCATION`, `ENERGY`, `ENTERTAINMENT`, `GOVERNMENT`, `HEALTHCARE`, `HOSPITALITY`, `INSURANCE`, `LEGAL`, `MANUFACTURING`, `NON_PROFIT`, `PROFESSIONAL`, `REAL_ESTATE`, `RETAIL`, `TECHNOLOGY`, `TRANSPORTATION`
 
@@ -272,50 +273,52 @@ client = CCAI.new(
 )
 
 # Create a campaign
-campaign = client.campaigns.create(
-  brand_id: 1,
-  use_case: 'MIXED',
-  sub_use_cases: ['CUSTOMER_CARE', 'TWO_FACTOR_AUTHENTICATION', 'ACCOUNT_NOTIFICATION'],
+campaign = client.campaign.create(
+  brandId: 1,
+  useCase: 'MIXED',
+  subUseCases: ['CUSTOMER_CARE', 'TWO_FACTOR_AUTHENTICATION', 'ACCOUNT_NOTIFICATION'],
   description: 'Security codes and support messaging.',
-  message_flow: 'Users opt-in via signup form at https://example.com/signup',
-  has_embedded_links: true,
-  has_embedded_phone: false,
-  is_age_gated: false,
-  is_direct_lending: false,
-  opt_in_keywords: ['START'],
-  opt_in_message: 'Welcome! Reply STOP to cancel.',
-  opt_in_proof_url: 'https://example.com/opt-in-proof.png',
-  help_keywords: ['HELP'],
-  help_message: 'For HELP email support@example.com.',
-  opt_out_keywords: ['STOP'],
-  opt_out_message: 'STOP received. You are unsubscribed.',
-  sample_messages: [
+  messageFlow: 'Users opt-in via signup form at https://example.com/signup',
+  hasEmbeddedLinks: true,
+  hasEmbeddedPhone: false,
+  isAgeGated: false,
+  isDirectLending: false,
+  optInKeywords: ['START'],
+  optInMessage: 'Welcome! Reply STOP to cancel.',
+  optInProofUrl: 'https://example.com/opt-in-proof.png',
+  helpKeywords: ['HELP'],
+  helpMessage: 'For HELP email support@example.com.',
+  optOutKeywords: ['STOP'],
+  optOutMessage: 'STOP received. You are unsubscribed.',
+  sampleMessages: [
     'Your code is 554321. Reply STOP to cancel.',
     'Your ticket has been updated. Reply HELP for info.'
-  ]
+  ],
+  termsLink: 'https://example.com/terms',
+  privacyLink: 'https://example.com/privacy'
 )
 puts "Campaign created with ID: #{campaign['id']}"
 
 # Get a campaign by ID
-fetched = client.campaigns.get(campaign['id'])
+fetched = client.campaign.get(campaign['id'])
 puts "Campaign use case: #{fetched['useCase']}"
 
 # List all campaigns
-campaigns = client.campaigns.list
+campaigns = client.campaign.list
 puts "Found #{campaigns.length} campaign(s)"
 
 # Update a campaign (partial update)
-client.campaigns.update(campaign['id'],
+client.campaign.update(campaign['id'],
   description: 'Updated description.'
 )
 
 # Delete a campaign
-client.campaigns.delete(campaign['id'])
+client.campaign.delete(campaign['id'])
 ```
 
 **Use Cases:** `TWO_FACTOR_AUTHENTICATION`, `ACCOUNT_NOTIFICATION`, `CUSTOMER_CARE`, `DELIVERY_NOTIFICATION`, `FRAUD_ALERT`, `HIGHER_EDUCATION`, `LOW_VOLUME_MIXED`, `MARKETING`, `MIXED`, `POLLING_VOTING`, `PUBLIC_SERVICE_ANNOUNCEMENT`, `SECURITY_ALERT`
 
-> Note: `MIXED` and `LOW_VOLUME_MIXED` campaigns require 2–3 `sub_use_cases`.
+> Note: `MIXED` and `LOW_VOLUME_MIXED` campaigns require 2–3 `subUseCases`.
 
 **Sub-Use Cases:** `TWO_FACTOR_AUTHENTICATION`, `ACCOUNT_NOTIFICATION`, `CUSTOMER_CARE`, `DELIVERY_NOTIFICATION`, `FRAUD_ALERT`, `MARKETING`, `POLLING_VOTING`
 
@@ -333,8 +336,7 @@ client = CCAI.new(
 # Example 1: Register a webhook with auto-generated secret
 # If secret is not provided, the server will auto-generate one
 config = {
-  url: 'https://your-app.com/webhooks/ccai',
-  events: [CCAI::Webhook::EventType::MESSAGE_SENT, CCAI::Webhook::EventType::MESSAGE_RECEIVED]
+  url: 'https://your-app.com/webhooks/ccai'
   # secret not provided - server will auto-generate and return it
 }
 
@@ -345,7 +347,6 @@ puts "Auto-generated Secret: #{webhook['secretKey']}"
 # Example 2: Register a webhook with a custom secret
 config_custom = {
   url: 'https://your-app.com/webhooks/ccai-v2',
-  events: [CCAI::Webhook::EventType::MESSAGE_SENT, CCAI::Webhook::EventType::MESSAGE_RECEIVED],
   secret: 'my-custom-secret-key'
 }
 
@@ -398,7 +399,6 @@ client = CCAI.new(
 
 # Define progress tracking
 options = CCAI::SMS::Options.new(
-  timeout: 60,
   on_progress: ->(status) {
     puts "Progress: #{status}"
   }
@@ -422,6 +422,7 @@ response = client.mms.send_with_image(
   [account],
   'Hello ${firstName}, check out this image!',
   'MMS Campaign Example',
+  nil,      # sender_phone
   options
 )
 
@@ -465,8 +466,6 @@ end
 ```ruby
 # Create options with progress tracking
 options = CCAI::SMS::Options.new(
-  timeout: 60,
-  retries: 3,
   on_progress: ->(status) {
     puts "#{Time.now.strftime('%Y-%m-%d %H:%M:%S')} - #{status}"
   }
@@ -477,6 +476,7 @@ response = client.sms.send(
   accounts,
   message,
   title,
+  nil,      # sender_phone
   options
 )
 ```
@@ -514,20 +514,29 @@ ccai --type email --client-id YOUR-CLIENT-ID --api-key YOUR-API-KEY \
   - `ccai/` - Core library files
     - `version.rb` - Version information
     - `client.rb` - Main CCAI client
-    - `sms/` - SMS-related functionality
+    - `sms/` - SMS and MMS functionality
       - `models.rb` - Data models
       - `sms_service.rb` - SMS service implementation
       - `mms_service.rb` - MMS service implementation
     - `email/` - Email-related functionality
       - `email_service.rb` - Email service implementation
-    - `webhook_service.rb` - Webhook service implementation
+    - `webhook/` - Webhook management
+      - `webhook_service.rb` - Webhook service implementation
+    - `contact/` - Contact opt-out preferences
+      - `contact_service.rb` - Contact service implementation
+    - `contact_validator/` - Email/phone validation
+      - `contact_validator_service.rb` - Contact validator service implementation
+    - `brand/` - Brand registration (10DLC)
+      - `brand_service.rb` - Brand service implementation
+    - `campaign/` - Campaign registration (10DLC)
+      - `campaign_service.rb` - Campaign service implementation
 - `bin/` - Command-line tools
   - `ccai` - Command-line interface
 - `examples/` - Example usage
   - `sms_send.rb` - Basic SMS example
-  - `mms_send.rb` - MMS examples
+  - `mms_send.rb` / `mms_example.rb` - MMS examples
   - `email_example.rb` - Email campaign examples
-  - `webhook_example.rb` - Webhook management examples
+  - `webhook_example.rb`, `webhook_handler_rails.rb`, `webhook_handler_sinatra.rb` - Webhook management examples
   - `progress_tracking_example.rb` - Progress tracking example
 - `test/` - Test files
 

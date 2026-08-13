@@ -34,13 +34,12 @@ def send_mms_with_image(client)
   # Define progress tracking
   progress_updates = []
   options = CCAI::SMS::Options.new(
-    timeout: 60,
     on_progress: ->(status) {
       puts "Progress: #{status}"
       progress_updates << status
     }
   )
-  
+
   # Send MMS with image in one step
   begin
     response = client.mms.send_with_image(
@@ -49,6 +48,7 @@ def send_mms_with_image(client)
       [account],
       message,
       title,
+      nil,      # sender_phone
       options
     )
     

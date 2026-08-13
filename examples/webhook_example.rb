@@ -6,11 +6,12 @@
 
 $LOAD_PATH.unshift(File.expand_path('../lib', __dir__))
 require 'ccai'
+require 'json'
 
 # Initialize the client
 client = CCAI.new(
-  client_id: '2682',
-  api_key: 'eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJpbmZvQGFsbGNvZGUuY29tIiwiaXNzIjoiY2xvdWRjb250YWN0IiwibmJmIjoxNzE5NDQwMjM2LCJpYXQiOjE3MTk0NDAyMzYsInJvbGUiOiJVU0VSIiwiY2xpZW50SWQiOjI2ODIsImlkIjoyNzY0LCJ0eXBlIjoiQVBJX0tFWSIsImtleV9yYW5kb21faWQiOiI1MGRiOTUzZC1hMjUxLTRmZjMtODI5Yi01NjIyOGRhOGE1YTAifQ.PKVjXYHdjBMum9cTgLzFeY2KIb9b2tjawJ0WXalsb8Bckw1RuxeiYKS1bw5Cc36_Rfmivze0T7r-Zy0PVj2omDLq65io0zkBzIEJRNGDn3gx_AqmBrJ3yGnz9s0WTMr2-F1TFPUByzbj1eSOASIKeI7DGufTA5LDrRclVkz32Oo'
+  client_id: ENV['CCAI_CLIENT_ID'] || 'YOUR_CLIENT_ID',
+  api_key: ENV['CCAI_API_KEY'] || 'YOUR_API_KEY'
 )
 
 # Example 1: Register a webhook
@@ -20,7 +21,6 @@ def register_webhook(client)
   begin
     config = {
       url: 'https://your-app.com/webhooks/ccai',
-      events: [CCAI::Webhook::EventType::MESSAGE_SENT, CCAI::Webhook::EventType::MESSAGE_RECEIVED],
       secret: 'your-webhook-secret'
     }
     
@@ -53,8 +53,7 @@ def update_webhook(client, webhook_id)
   
   begin
     config = {
-      url: 'https://your-app.com/webhooks/ccai-updated',
-      events: [CCAI::Webhook::EventType::MESSAGE_RECEIVED]
+      url: 'https://your-app.com/webhooks/ccai-updated'
     }
     
     response = client.webhook.update(webhook_id, config)
@@ -83,13 +82,16 @@ end
 # Example 5: Verify webhook signature
 def verify_webhook_signature(client)
   puts "\n=== Verifying Webhook Signature ==="
-  
+
   # Example webhook payload
   signature = 'sha256=example-signature'
-  body = '{"type":"message.sent","campaign":{"id":123,"title":"Test"}}'
+  body = '{"eventType":"message.sent","eventHash":"abc123hash","data":{"To":"+15551234567"}}'
+  payload = JSON.parse(body)
+  client_id = ENV['CCAI_CLIENT_ID']
+  event_hash = payload['eventHash']
   secret = 'your-webhook-secret'
-  
-  is_valid = client.webhook.verify_signature(signature, body, secret)
+
+  is_valid = client.webhook.verify_signature(signature, client_id, event_hash, secret)
   puts "Signature valid: #{is_valid}"
   is_valid
 end
@@ -101,41 +103,44 @@ def example_webhook_handler
     # Example Sinatra webhook handler
     require 'sinatra'
     require 'json'
-    
+
     post '/webhooks/ccai' do
       # Get the raw body for signature verification
       request.body.rewind
       payload_body = request.body.read
-      
+
       # Parse the JSON payload
       payload = JSON.parse(payload_body)
-      
+
       # Verify the signature (optional but recommended)
       signature = request.env['HTTP_X_CCAI_SIGNATURE']
+      client_id = ENV['CCAI_CLIENT_ID']
+      event_hash = payload['eventHash']
       secret = ENV['CCAI_WEBHOOK_SECRET']
-      
+
       if signature && secret
-        unless client.webhook.verify_signature(signature, payload_body, secret)
+        unless client.webhook.verify_signature(signature, client_id, event_hash, secret)
           halt 401, 'Invalid signature'
         end
       end
-      
-      # Process the webhook based on its type
-      case payload['type']
-      when '#{CCAI::Webhook::EventType::MESSAGE_SENT}'
-        puts "Message sent to: \#{payload['to']}"
-        puts "Campaign: \#{payload['campaign']['title']}"
+
+      # Process the webhook based on its event type
+      data = payload['data']
+      case payload['eventType']
+      when 'message.sent'
+        puts "Message delivered to: \#{data['To']}"
+        puts "Campaign: \#{data['CampaignTitle']}"
         # Add your custom logic here
-        
-      when '#{CCAI::Webhook::EventType::MESSAGE_RECEIVED}'
-        puts "Message received from: \#{payload['from']}"
-        puts "Message: \#{payload['message']}"
+
+      when 'message.incoming'
+        puts "Reply from: \#{data['From']}"
+        puts "Message: \#{data['Message']}"
         # Add your custom logic here
-        
+
       else
-        puts "Unknown webhook type: \#{payload['type']}"
+        puts "Unhandled event type: \#{payload['eventType']}"
       end
-      
+
       # Always respond with 200 to acknowledge receipt
       status 200
       { received: true }.to_json
