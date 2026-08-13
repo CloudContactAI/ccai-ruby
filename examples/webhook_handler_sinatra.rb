@@ -36,24 +36,26 @@ post '/webhooks/ccai' do
   
   # Verify the signature (optional but recommended)
   signature = request.env['HTTP_X_CCAI_SIGNATURE']
-  
+  client_id = ENV['CCAI_CLIENT_ID']
+  event_hash = payload['eventHash']
+
   if signature && WEBHOOK_SECRET
-    unless client.webhook.verify_signature(signature, payload_body, WEBHOOK_SECRET)
+    unless client.webhook.verify_signature(signature, client_id, event_hash, WEBHOOK_SECRET)
       puts "Invalid webhook signature"
       halt 401, 'Invalid signature'
     end
   end
-  
-  # Process the webhook based on its type
-  case payload['type']
-  when CCAI::Webhook::EventType::MESSAGE_SENT
-    handle_message_sent(payload)
-    
-  when CCAI::Webhook::EventType::MESSAGE_RECEIVED
-    handle_message_received(payload)
-    
+
+  # Process the webhook based on its event type
+  case payload['eventType']
+  when 'message.sent'
+    handle_message_sent(payload['data'])
+
+  when 'message.incoming'
+    handle_message_received(payload['data'])
+
   else
-    puts "Unknown webhook type: #{payload['type']}"
+    puts "Unhandled event type: #{payload['eventType']}"
   end
   
   # Always respond with 200 to acknowledge receipt
@@ -62,15 +64,13 @@ post '/webhooks/ccai' do
   { received: true }.to_json
 end
 
-# Handle outbound message events
-def handle_message_sent(payload)
+# Handle outbound message events (payload is the webhook event's "data" object)
+def handle_message_sent(data)
   puts "=== Message Sent Event ==="
-  puts "Campaign: #{payload['campaign']['title']} (ID: #{payload['campaign']['id']})"
-  puts "From: #{payload['from']}"
-  puts "To: #{payload['to']}"
-  puts "Message: #{payload['message']}"
-  puts "Sent at: #{payload['campaign']['runAt']}"
-  
+  puts "Campaign: #{data['CampaignTitle']} (ID: #{data['CampaignId']})"
+  puts "To: #{data['To']}"
+  puts "Message: #{data['Message']}"
+
   # Add your custom logic here
   # For example:
   # - Update your database with delivery status
@@ -78,28 +78,27 @@ def handle_message_sent(payload)
   # - Send notifications to your team
 end
 
-# Handle inbound message events
-def handle_message_received(payload)
+# Handle inbound message events (payload is the webhook event's "data" object)
+def handle_message_received(data)
   puts "=== Message Received Event ==="
-  puts "Campaign: #{payload['campaign']['title']} (ID: #{payload['campaign']['id']})"
-  puts "From: #{payload['from']}"
-  puts "To: #{payload['to']}"
-  puts "Message: #{payload['message']}"
-  
+  puts "Campaign: #{data['CampaignTitle']} (ID: #{data['CampaignId']})"
+  puts "From: #{data['From']}"
+  puts "Message: #{data['Message']}"
+
   # Add your custom logic here
   # For example:
   # - Store the reply in your database
   # - Trigger automated responses
   # - Forward to customer service
   # - Update contact preferences
-  
+
   # Example: Simple auto-reply for certain keywords
-  message = payload['message'].downcase
+  message = data['Message'].to_s.downcase
   if message.include?('stop') || message.include?('unsubscribe')
-    puts "Processing unsubscribe request from #{payload['from']}"
+    puts "Processing unsubscribe request from #{data['From']}"
     # Add unsubscribe logic here
   elsif message.include?('help')
-    puts "Sending help information to #{payload['from']}"
+    puts "Sending help information to #{data['From']}"
     # Add help response logic here
   end
 end

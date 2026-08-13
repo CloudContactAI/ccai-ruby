@@ -15,8 +15,6 @@ client = CCAI.new(
 
 # Create options with progress tracking
 options = CCAI::SMS::Options.new(
-  timeout: 60,
-  retries: 3,
   on_progress: ->(status) {
     puts "#{Time.now.strftime('%Y-%m-%d %H:%M:%S')} - #{status}"
   }
@@ -42,6 +40,7 @@ begin
     accounts,
     'Hello ${firstName}, this is a test message with progress tracking!',
     'Progress Tracking Test',
+    nil,      # sender_phone
     options
   )
   
