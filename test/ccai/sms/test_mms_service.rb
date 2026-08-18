@@ -72,7 +72,7 @@ class TestMMSService < Minitest::Test
   def test_upload_image_to_signed_url
     # Mock File.exist? and File.binread
     File.stub :exist?, true do
-      File.stub :binread, 'test image data' do
+      File.stub :binread, 'test image data'.dup do
         stub_request(:put, @signed_url)
           .with(
             body: 'test image data',
@@ -195,7 +195,7 @@ class TestMMSService < Minitest::Test
       on_progress: ->(status) { progress_updates << status }
     )
     
-    @client.mms.send(@picture_file_key, [@account], @message, @title, options)
+    @client.mms.send(@picture_file_key, [@account], @message, @title, nil, options)
     
     assert_equal 3, progress_updates.size
     assert_equal 'Preparing to send MMS', progress_updates[0]
@@ -284,6 +284,7 @@ class TestMMSService < Minitest::Test
       [@account],
       @message,
       @title,
+      nil,
       options
     )
 
@@ -333,6 +334,7 @@ class TestMMSService < Minitest::Test
       [@account],
       @message,
       @title,
+      nil,
       options
     )
 
@@ -397,7 +399,7 @@ class TestMMSService < Minitest::Test
       )
 
     result = @client.mms.check_file_uploaded(file_key)
-    assert_equal 'https://s3.amazonaws.com/bucket/test.jpg', result['storedUrl']
+    assert_equal 'https://s3.amazonaws.com/bucket/test.jpg', result[:storedUrl]
   end
 
   def test_check_file_uploaded_on_error
@@ -408,6 +410,6 @@ class TestMMSService < Minitest::Test
     # 404 triggers Faraday::Error -> CCAI::Error -> rescue returns {storedUrl: ''}
     # Actually 404 will raise CCAI::Error which is rescued
     result = @client.mms.check_file_uploaded(file_key)
-    assert_equal '', result['storedUrl']
+    assert_equal '', result[:storedUrl]
   end
 end

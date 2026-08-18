@@ -32,9 +32,9 @@ class TestContactService < Minitest::Test
 
     response = @contact_service.set_do_not_text(true, phone: '+15551234567')
 
-    assert_equal '12345', response['contactId']
-    assert_equal '+15551234567', response['phone']
-    assert response['doNotText']
+    assert_equal '12345', response[:contactId]
+    assert_equal '+15551234567', response[:phone]
+    assert response[:doNotText]
   end
 
   def test_set_do_not_text_opt_in
@@ -54,7 +54,7 @@ class TestContactService < Minitest::Test
 
     response = @contact_service.set_do_not_text(false, phone: '+15551234567')
 
-    refute response['doNotText']
+    refute response[:doNotText]
   end
 
   def test_set_do_not_text_with_contact_id
@@ -74,6 +74,6 @@ class TestContactService < Minitest::Test
 
     response = @contact_service.set_do_not_text(true, contact_id: '98765')
 
-    assert_equal '98765', response['contactId']
+    assert_equal '98765', response[:contactId]
   end
 end
