@@ -79,8 +79,8 @@ class TestClient < Minitest::Test
       )
 
     response = client.request(:get, '/test-endpoint')
-    assert_equal 'test-id', response['id']
-    assert_equal 'success', response['status']
+    assert_equal 'test-id', response[:id]
+    assert_equal 'success', response[:status]
   end
 
   def test_request_with_data
@@ -102,8 +102,8 @@ class TestClient < Minitest::Test
       )
 
     response = client.request(:post, '/test-endpoint', { test: 'data' })
-    assert_equal 'test-id', response['id']
-    assert_equal 'success', response['status']
+    assert_equal 'test-id', response[:id]
+    assert_equal 'success', response[:status]
   end
 
   def test_request_with_headers
@@ -126,8 +126,8 @@ class TestClient < Minitest::Test
       )
 
     response = client.request(:post, '/test-endpoint', { test: 'data' }, { 'Custom-Header' => 'custom-value' })
-    assert_equal 'test-id', response['id']
-    assert_equal 'success', response['status']
+    assert_equal 'test-id', response[:id]
+    assert_equal 'success', response[:status]
   end
 
   def test_request_error
