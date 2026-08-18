@@ -28,7 +28,7 @@ module CCAI
       def send(accounts, message, title, sender_phone = nil, options = nil, template_id = nil)
         # Validate inputs
         raise ArgumentError, 'At least one account is required' if accounts.nil? || accounts.empty?
-        raise ArgumentError, 'Message is required' if message.nil? || message.empty?
+        raise ArgumentError, 'Message is required' if (message.nil? || message.empty?) && template_id.nil?
         raise ArgumentError, 'Title is required' if title.nil? || title.empty?
 
         # Create options if not provided

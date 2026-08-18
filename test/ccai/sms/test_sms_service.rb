@@ -93,8 +93,8 @@ class TestSMSService < Minitest::Test
       on_progress: ->(status) { progress_updates << status }
     )
     
-    @client.sms.send([@account], @message, @title, options)
-    
+    @client.sms.send([@account], @message, @title, nil, options)
+
     assert_equal 3, progress_updates.size
     assert_equal 'Preparing to send SMS', progress_updates[0]
     assert_equal 'Sending SMS', progress_updates[1]
@@ -115,7 +115,7 @@ class TestSMSService < Minitest::Test
     )
     
     assert_raises CCAI::Error do
-      @client.sms.send([@account], @message, @title, options)
+      @client.sms.send([@account], @message, @title, nil, options)
     end
 
     assert_equal 3, progress_updates.size

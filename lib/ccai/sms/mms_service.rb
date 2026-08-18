@@ -268,7 +268,7 @@ module CCAI
       def check_file_uploaded(file_key)
         @client.request(:get, "/clients/#{@client.client_id}/storedUrl?fileKey=#{file_key}")
       rescue CCAI::Error
-        { 'storedUrl' => '' }
+        { storedUrl: '' }
       end
 
       private

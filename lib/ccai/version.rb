@@ -5,5 +5,5 @@
 
 module CCAI
   # Current version of the CCAI Ruby client
-  VERSION = "1.1.0"
+  VERSION = "1.2.0"
 end

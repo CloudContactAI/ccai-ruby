@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
-# Ruby SDK integration tests -- 52 tests
+# Ruby SDK integration tests -- 54 tests
 # Covers: SMS (1-6), MMS (7-17), Email (18-22), Webhook (23-29), Contact (30-31),
-#         Brands (32-36), Campaigns (37-42), ContactValidator (43-46), Negative cases (47-52)
+#         Brands (32-36), Campaigns (37-42), ContactValidator (43-46), Negative cases (47-52),
+#         SMS Templates (53-54)
 #
 # Test results use three states:
 #   PASS -- the test ran and all assertions held
@@ -93,7 +94,7 @@ REQUIRED_ENV = %w[
   CCAI_TEST_FIRST_NAME CCAI_TEST_LAST_NAME
   CCAI_TEST_FIRST_NAME_2 CCAI_TEST_LAST_NAME_2
   CCAI_TEST_FIRST_NAME_3 CCAI_TEST_LAST_NAME_3
-  WEBHOOK_URL
+  WEBHOOK_URL CCAI_TEST_TEMPLATE_ID
 ].freeze
 
 missing = REQUIRED_ENV.select { |key| ENV[key].nil? || ENV[key].empty? }
@@ -116,6 +117,7 @@ fn2       = ENV.fetch('CCAI_TEST_FIRST_NAME_2')
 ln2       = ENV.fetch('CCAI_TEST_LAST_NAME_2')
 fn3       = ENV.fetch('CCAI_TEST_FIRST_NAME_3')
 ln3       = ENV.fetch('CCAI_TEST_LAST_NAME_3')
+template_id = ENV.fetch('CCAI_TEST_TEMPLATE_ID').to_i
 
 # Unique per-run suffix so parallel SDK runs don't collide on the same webhook URL
 run_id       = "ruby-#{Time.now.to_i}"
@@ -644,27 +646,35 @@ begin
   # 43 -- ContactValidator.validate_email
   run_test('43 ContactValidator.validate_email') do
     resp = client.contact_validator.validate_email(email1)
-    raise 'status is empty' if resp[:status].to_s.empty?
+    status = resp['status'] || resp[:status]
+    raise 'status is empty' if status.to_s.empty?
   end
 
   # 44 -- ContactValidator.validate_emails
   run_test('44 ContactValidator.validate_emails') do
     resp = client.contact_validator.validate_emails([email1, email2])
-    raise "expected summary.total=2, got #{resp.dig(:summary, :total)}" unless resp.dig(:summary, :total) == 2
-    raise "expected 2 results, got #{resp[:results]&.size}" unless resp[:results]&.size == 2
+    summary = resp['summary'] || resp[:summary] || {}
+    total = summary['total'] || summary[:total]
+    results = resp['results'] || resp[:results]
+    raise "expected summary.total=2, got #{total}" unless total == 2
+    raise "expected 2 results, got #{results&.size}" unless results&.size == 2
   end
 
   # 45 -- ContactValidator.validate_phone
   run_test('45 ContactValidator.validate_phone') do
     resp = client.contact_validator.validate_phone(phone1)
-    raise 'status is empty' if resp[:status].to_s.empty?
+    status = resp['status'] || resp[:status]
+    raise 'status is empty' if status.to_s.empty?
   end
 
   # 46 -- ContactValidator.validate_phones
   run_test('46 ContactValidator.validate_phones') do
     resp = client.contact_validator.validate_phones([{ phone: phone1 }, { phone: phone2 }])
-    raise "expected summary.total=2, got #{resp.dig(:summary, :total)}" unless resp.dig(:summary, :total) == 2
-    raise "expected 2 results, got #{resp[:results]&.size}" unless resp[:results]&.size == 2
+    summary = resp['summary'] || resp[:summary] || {}
+    total = summary['total'] || summary[:total]
+    results = resp['results'] || resp[:results]
+    raise "expected summary.total=2, got #{total}" unless total == 2
+    raise "expected 2 results, got #{results&.size}" unless results&.size == 2
   end
 
   # ── Negative & Permissive Tests (47-52) ─────────────────────────────────────
@@ -710,7 +720,8 @@ begin
   # there, so only assert that a status is returned.
   run_test('51 PERMISSIVE: ContactValidator.validate_email(invalid input)') do
     resp = client.contact_validator.validate_email('not-an-email')
-    raise 'status is empty' if resp[:status].to_s.empty?
+    status = resp['status'] || resp[:status]
+    raise 'status is empty' if status.to_s.empty?
   end
 
   # 52 -- the test API accepts MMS sends with a nonexistent fileKey: it does not
@@ -720,6 +731,23 @@ begin
     accounts = [CCAI::SMS::Account.new(first_name: fn1, last_name: ln1, phone: phone1)]
     fake_key = "#{client_id}/campaign/nonexistent_#{Time.now.to_i}.png"
     resp = client.mms.send(fake_key, accounts, 'nonexistent fileKey accepted', 'Ruby Permissive 52')
+    assert_send_response!(resp)
+  end
+
+  puts "\n--- SMS Templates ---"
+
+  run_test('53 SMS.send_with_template') do
+    resp = client.sms.send_with_template(
+      [
+        CCAI::SMS::Account.new(first_name: fn1, last_name: ln1, phone: phone1),
+        CCAI::SMS::Account.new(first_name: fn2, last_name: ln2, phone: phone2)
+      ], template_id, 'Ruby Template Test'
+    )
+    assert_send_response!(resp)
+  end
+
+  run_test('54 SMS.send_single_with_template') do
+    resp = client.sms.send_single_with_template(fn1, ln1, phone1, template_id, 'Ruby Single Template Test')
     assert_send_response!(resp)
   end
 ensure

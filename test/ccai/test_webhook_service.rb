@@ -31,9 +31,9 @@ class TestWebhookService < Minitest::Test
 
     response = @webhook_service.register(config)
 
-    assert_equal 'webhook_123', response['id']
-    assert_equal 'https://example.com/webhook', response['url']
-    assert_equal 'sk_live_auto_generated', response['secretKey']
+    assert_equal 'webhook_123', response[:id]
+    assert_equal 'https://example.com/webhook', response[:url]
+    assert_equal 'sk_live_auto_generated', response[:secretKey]
   end
 
   def test_register_webhook_custom_secret
@@ -51,8 +51,8 @@ class TestWebhookService < Minitest::Test
 
     response = @webhook_service.register(config)
 
-    assert_equal 'webhook_124', response['id']
-    assert_equal 'my-custom-secret', response['secretKey']
+    assert_equal 'webhook_124', response[:id]
+    assert_equal 'my-custom-secret', response[:secretKey]
   end
 
   def test_update_webhook_without_secret
@@ -70,8 +70,8 @@ class TestWebhookService < Minitest::Test
 
     response = @webhook_service.update('webhook_123', config)
 
-    assert_equal 'webhook_123', response['id']
-    assert_equal 'https://example.com/updated', response['url']
+    assert_equal 'webhook_123', response[:id]
+    assert_equal 'https://example.com/updated', response[:url]
   end
 
   def test_update_webhook_with_secret
@@ -89,8 +89,8 @@ class TestWebhookService < Minitest::Test
 
     response = @webhook_service.update('webhook_123', config)
 
-    assert_equal 'webhook_123', response['id']
-    assert_equal 'new_secret', response['secretKey']
+    assert_equal 'webhook_123', response[:id]
+    assert_equal 'new_secret', response[:secretKey]
   end
 
   def test_list_webhooks
@@ -105,7 +105,7 @@ class TestWebhookService < Minitest::Test
 
     assert_instance_of Array, response
     assert_equal 1, response.length
-    assert_equal 'webhook_123', response.first['id']
+    assert_equal 'webhook_123', response.first[:id]
   end
 
   def test_delete_webhook
@@ -118,8 +118,8 @@ class TestWebhookService < Minitest::Test
 
     response = @webhook_service.delete('webhook_123')
 
-    assert_equal true, response['success']
-    assert_equal 'Webhook deleted', response['message']
+    assert_equal true, response[:success]
+    assert_equal 'Webhook deleted', response[:message]
   end
 
   def test_verify_signature_valid
