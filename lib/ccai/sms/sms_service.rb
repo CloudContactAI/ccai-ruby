@@ -25,7 +25,7 @@ module CCAI
       # @param options [CCAI::SMS::Options, nil] Optional settings for the SMS send operation
       # @return [CCAI::SMS::Response] API response
       # @raise [ArgumentError] If required parameters are missing or invalid
-      def send(accounts, message, title, sender_phone = nil, options = nil)
+      def send(accounts, message, title, sender_phone = nil, options = nil, template_id = nil)
         # Validate inputs
         raise ArgumentError, 'At least one account is required' if accounts.nil? || accounts.empty?
         raise ArgumentError, 'Message is required' if message.nil? || message.empty?
@@ -49,6 +49,7 @@ module CCAI
           title: title
         }
         campaign_data[:senderPhone] = sender_phone if sender_phone
+        campaign_data[:templateId] = template_id if template_id
 
         begin
           # Notify progress if callback provided
@@ -90,6 +91,34 @@ module CCAI
         )
 
         send([account], message, title, sender_phone, options)
+      end
+
+      # Send SMS using a pre-approved template (for template-controlled accounts).
+      # The message body is resolved server-side from the template.
+      #
+      # @param accounts [Array<CCAI::SMS::Account>] List of recipient accounts
+      # @param template_id [Integer] ID of the approved template
+      # @param title [String] Campaign title
+      # @param sender_phone [String, nil] Optional sender phone number
+      # @param options [CCAI::SMS::Options, nil] Optional settings
+      # @return [CCAI::SMS::Response] API response
+      def send_with_template(accounts, template_id, title, sender_phone = nil, options = nil)
+        send(accounts, '', title, sender_phone, options, template_id)
+      end
+
+      # Send SMS to a single recipient using a pre-approved template.
+      #
+      # @param first_name [String] Recipient's first name
+      # @param last_name [String] Recipient's last name
+      # @param phone [String] Recipient's phone number in E.164 format
+      # @param template_id [Integer] ID of the approved template
+      # @param title [String] Campaign title
+      # @param sender_phone [String, nil] Optional sender phone number
+      # @param options [CCAI::SMS::Options, nil] Optional settings
+      # @return [CCAI::SMS::Response] API response
+      def send_single_with_template(first_name, last_name, phone, template_id, title, sender_phone = nil, options = nil)
+        account = Account.new(first_name: first_name, last_name: last_name, phone: phone)
+        send_with_template([account], template_id, title, sender_phone, options)
       end
 
     end
