@@ -215,4 +215,33 @@ class TestSMSService < Minitest::Test
     assert_equal 'sent', response.status
   end
 
+  def test_send_with_template
+    stub_request(:post, "#{@client.base_url}/clients/#{@client_id}/campaigns/direct")
+      .with(body: hash_including(templateId: 12345, message: '', title: 'Template Campaign'))
+      .to_return(
+        status: 200,
+        body: { id: 'msg-tpl-1', status: 'sent', campaignId: 'camp-tpl-1' }.to_json,
+        headers: { 'Content-Type' => 'application/json' }
+      )
+
+    response = @client.sms.send_with_template([@account], 12345, 'Template Campaign')
+
+    assert_equal 'msg-tpl-1', response.id
+    assert_equal 'sent', response.status
+  end
+
+  def test_send_single_with_template
+    stub_request(:post, "#{@client.base_url}/clients/#{@client_id}/campaigns/direct")
+      .with(body: hash_including(templateId: 99, title: 'Single Template'))
+      .to_return(
+        status: 200,
+        body: { id: 'msg-tpl-2', status: 'sent' }.to_json,
+        headers: { 'Content-Type' => 'application/json' }
+      )
+
+    response = @client.sms.send_single_with_template('Jane', 'Smith', '+15559876543', 99, 'Single Template')
+
+    assert_equal 'msg-tpl-2', response.id
+  end
+
 end
