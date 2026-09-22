@@ -3,7 +3,7 @@
 # Ruby SDK integration tests -- 54 tests
 # Covers: SMS (1-6), MMS (7-17), Email (18-22), Webhook (23-29), Contact (30-31),
 #         Brands (32-36), Campaigns (37-42), ContactValidator (43-46), Negative cases (47-52),
-#         SMS Templates (53-54)
+#         SMS Templates (53-54, dedicated template account)
 #
 # Test results use three states:
 #   PASS -- the test ran and all assertions held
@@ -94,7 +94,7 @@ REQUIRED_ENV = %w[
   CCAI_TEST_FIRST_NAME CCAI_TEST_LAST_NAME
   CCAI_TEST_FIRST_NAME_2 CCAI_TEST_LAST_NAME_2
   CCAI_TEST_FIRST_NAME_3 CCAI_TEST_LAST_NAME_3
-  WEBHOOK_URL CCAI_TEST_TEMPLATE_ID
+  WEBHOOK_URL
 ].freeze
 
 missing = REQUIRED_ENV.select { |key| ENV[key].nil? || ENV[key].empty? }
@@ -117,7 +117,7 @@ fn2       = ENV.fetch('CCAI_TEST_FIRST_NAME_2')
 ln2       = ENV.fetch('CCAI_TEST_LAST_NAME_2')
 fn3       = ENV.fetch('CCAI_TEST_FIRST_NAME_3')
 ln3       = ENV.fetch('CCAI_TEST_LAST_NAME_3')
-template_id = ENV.fetch('CCAI_TEST_TEMPLATE_ID').to_i
+template_id = ENV['CCAI_TEST_TEMPLATE_ID'].to_s.empty? ? nil : ENV.fetch('CCAI_TEST_TEMPLATE_ID').to_i
 
 # Unique per-run suffix so parallel SDK runs don't collide on the same webhook URL
 run_id       = "ruby-#{Time.now.to_i}"
@@ -736,8 +736,28 @@ begin
 
   puts "\n--- SMS Templates ---"
 
+  # Templates run against a separate, dedicated account (CCAI_TEMPLATE_CLIENT_ID/
+  # API_KEY): the main test account can't have template usage configured, since
+  # that starts requiring a template_id on every campaign — including the plain
+  # SMS/MMS/Email sends tested above.
+  template_client_id = ENV['CCAI_TEMPLATE_CLIENT_ID']
+  template_api_key   = ENV['CCAI_TEMPLATE_API_KEY']
+
+  template_client = lambda do
+    if template_client_id.to_s.empty? || template_api_key.to_s.empty? || template_id.nil?
+      raise SkipTest, 'CCAI_TEMPLATE_CLIENT_ID/CCAI_TEMPLATE_API_KEY/CCAI_TEST_TEMPLATE_ID not set'
+    end
+    CCAI::Client.new(
+      CCAI::Config.new(
+        client_id: template_client_id,
+        api_key: template_api_key,
+        use_test_environment: ENV['CCAI_BASE_URL'].nil?
+      )
+    )
+  end
+
   run_test('53 SMS.send_with_template') do
-    resp = client.sms.send_with_template(
+    resp = template_client.call.sms.send_with_template(
       [
         CCAI::SMS::Account.new(first_name: fn1, last_name: ln1, phone: phone1),
         CCAI::SMS::Account.new(first_name: fn2, last_name: ln2, phone: phone2)
@@ -747,7 +767,7 @@ begin
   end
 
   run_test('54 SMS.send_single_with_template') do
-    resp = client.sms.send_single_with_template(fn1, ln1, phone1, template_id, 'Ruby Single Template Test')
+    resp = template_client.call.sms.send_single_with_template(fn1, ln1, phone1, template_id, 'Ruby Single Template Test')
     assert_send_response!(resp)
   end
 ensure
